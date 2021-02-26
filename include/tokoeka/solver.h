@@ -62,7 +62,7 @@ num_t value(solver_t* solver, symbol_t var);
 result_e edit(solver_t* solver, symbol_t var, num_t strength);
 void disable_edit(solver_t* solver, symbol_t var);
 bool has_edit(solver_t* solver, symbol_t var);
-void suggest(solver_t* solver, symbol_t var, num_t value);
-
+void suggest(solver_t *solver, uint16_t count, symbol_t* vars, num_t* values);
+void suggest(solver_t *solver, symbol_t var, num_t value);
 
 }

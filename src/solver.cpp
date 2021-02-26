@@ -1149,21 +1149,30 @@ bool has_edit(solver_t *solver, symbol_t var) {
     return var_data->constraint; 
 }
 
-void suggest(solver_t *solver, symbol_t var, num_t value) {
-    num_t delta;
-    if (var == 0) return;
+void suggest(solver_t *solver, 
+        uint16_t count, symbol_t* vars, num_t* values) {
+    for (uint16_t i = 0u; i < count; ++i) {
+        symbol_t var = vars[i];
+        num_t value = values[i];
 
-    auto var_data = get_var_data(solver, var);
-
-    if (var_data->constraint == 0) {
-        edit(solver, var, STRENGTH_MEDIUM);
         auto var_data = get_var_data(solver, var);
-        assert(var_data->constraint);
+
+        if (var_data->constraint == 0) {
+            edit(solver, var, STRENGTH_MEDIUM);
+            auto var_data = get_var_data(solver, var);
+            assert(var_data->constraint);
+        }
+        num_t delta = value - var_data->edit_value;
+        var_data->edit_value = value;
+        delta_edit_constant(solver, delta, var_data->constraint);
     }
-    delta = value - var_data->edit_value;
-    var_data->edit_value = value;
-    delta_edit_constant(solver, delta, var_data->constraint);
     dual_optimize(solver);
+}
+
+void suggest(solver_t *solver, symbol_t var, num_t value) {
+    symbol_t vars[] = {var};
+    num_t values[] = {value};
+    suggest(solver, 1, vars, values);
 }
 
 }

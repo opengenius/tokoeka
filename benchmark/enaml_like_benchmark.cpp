@@ -239,8 +239,9 @@ int main()
         num_t height = size.height;
 
         ankerl::nanobench::Bench().minEpochIterations(100).run("suggest value " + std::to_string(size.width) + "x" + std::to_string(size.height), [&] {
-            suggest(S, widthVar, width);
-            suggest(S, heightVar, height);
+            symbol_t vars[] = {widthVar, heightVar};
+            num_t values[] = {width, height};
+            suggest(S, 2, vars, values);
         });
     }
 
