@@ -65,8 +65,8 @@ typedef struct {
 
 typedef struct {
     term_data_t* data;
-    size_t       size;
-    size_t       count;
+    uint32_t     size;
+    uint32_t     count;
 } terms_table_t;
 
 struct solver_t {
@@ -212,7 +212,7 @@ static const hash_array_protocol_t s_term_ht_impl {
 // Linear equation tableau (sparse matrix in DOK with row, column linked lists)
 ///////////////////////////////////////////////////////////////////////////////
 
-static void init_table(allocator_t* alloc, terms_table_t* terms, size_t size) {
+static void init_table(allocator_t* alloc, terms_table_t* terms, uint32_t size) {
     auto buffer_byte_size = sizeof(term_data_t) * size;
     terms->data = (term_data_t*)allocate(alloc, buffer_byte_size);
     terms->size = size;
@@ -240,7 +240,7 @@ static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord) {
     return res;
 }
 
-static void table_grow_rehash(allocator_t* alloc, terms_table_t* terms, size_t size) {
+static void table_grow_rehash(allocator_t* alloc, terms_table_t* terms, uint32_t size) {
     terms_table_t new_table = {};
     init_table(alloc, &new_table, size);
 

@@ -32,7 +32,7 @@ struct hash_desc_t {
 static uint32_t hash_find_index(const hash_desc_t* desc, const void* key) {
     int key_hash = desc->ht_api->hash(key);
     int index = key_hash % desc->element_count;
-    for (int i = 0; i < desc->element_count; ++i) {
+    for (uint32_t i = 0; i < desc->element_count; ++i) {
         if (!desc->ht_api->key_valid(desc->data, index) || 
             desc->ht_api->key_equal(desc->data, index, key)) {
 
