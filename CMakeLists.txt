@@ -11,7 +11,10 @@ add_library(tokoeka STATIC
     src/solver.cpp)
 target_include_directories(tokoeka PUBLIC include)
 
-add_subdirectory(benchmark)
+get_directory_property(HAS_PARENT PARENT_DIRECTORY)
+if (NOT HAS_PARENT)
+    add_subdirectory(benchmark)
 
-enable_testing()
-add_subdirectory(tests)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
