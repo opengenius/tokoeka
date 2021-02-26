@@ -1013,6 +1013,40 @@ void destroy_solver(solver_t *solver) {
     free(&solver->allocator, solver);
 }
 
+symbol_t create_variable(solver_t *solver) {
+    return new_symbol(solver, symbol_type_e::EXTERNAL);
+}
+
+void delete_variable(solver_t *solver, symbol_t var) {
+    auto var_data = (var_entry_t*)array_get(&solver->vars, var); 
+    delete_constraint(solver, var_data->var.constraint);
+
+    // todo: delete rows? 
+    assert(!has_row(&solver->terms, var));
+    assert(!first_symbol_iterator(&solver->terms, var).term_res.term);
+
+    // delete symbol link list
+    auto term_it = find_term(&solver->terms, {0u, var});
+    delete_term(&solver->terms, &term_it, unlink_frags_e::NONE);
+
+    // link to free list
+    auto free_list_head = (var_entry_t*)array_get(&solver->vars, FREELIST_INDEX);
+    var_data->next = free_list_head->next;
+    free_list_head->next = var;
+}
+
+num_t value(solver_t *solver, symbol_t var) {
+    assert(var);
+
+    const term_coord_t key = {var, 0u};
+    auto var_term = find_existing_term(&solver->terms, key);
+    if (var_term) {
+        return var_term->multiplier;
+    }
+
+    return 0.0f;
+}
+
 result_e add_constraint(solver_t *solver, const constraint_desc_t* desc, constraint_handle_t *out_cons) {
     result_e ret;
     if (solver == NULL) return result_e::FAILED;
@@ -1067,40 +1101,6 @@ void delete_constraint(solver_t *solver, constraint_handle_t cons) {
     auto entry = (constraint_entry_t*)array_get(&solver->constraints, cons); 
     entry->next = free_list_head->next;
     free_list_head->next = cons;
-}
-
-symbol_t create_variable(solver_t *solver) {
-    return new_symbol(solver, symbol_type_e::EXTERNAL);
-}
-
-void delete_variable(solver_t *solver, symbol_t var) {
-    if (!var) return;
-
-    auto var_data = (var_entry_t*)array_get(&solver->vars, var); 
-    delete_constraint(solver, var_data->var.constraint);
-
-    assert(!first_symbol_iterator(&solver->terms, var).term_res.term);
-
-    // delete symbol link list
-    auto term_it = find_term(&solver->terms, {0u, var});
-    delete_term(&solver->terms, &term_it, unlink_frags_e::NONE);
-
-    // link to free list
-    auto free_list_head = (var_entry_t*)array_get(&solver->vars, FREELIST_INDEX);
-    var_data->next = free_list_head->next;
-    free_list_head->next = var;
-}
-
-num_t value(solver_t *solver, symbol_t var) {
-    assert(var);
-
-    const term_coord_t key = {var, 0u};
-    auto var_term = find_existing_term(&solver->terms, key);
-    if (var_term) {
-        return var_term->multiplier;
-    }
-
-    return 0.0f;
 }
 
 result_e edit(solver_t *solver, symbol_t var, num_t strength) {

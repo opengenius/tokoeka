@@ -53,6 +53,33 @@ solver_t* create_solver(const solver_desc_t* desc);
  */
 void destroy_solver(solver_t* solver);
 
+/**
+ * Add variable to solver
+ * @param solver solver
+ * @return variable handle
+ */
+symbol_t create_variable(solver_t* solver);
+
+/**
+ * Remove variable from solver, expects variable is not used(poor design)
+ * @param solver solver
+ * @param var variable to remove
+ * @todo test, remove independently of referring constraint?
+ */
+void delete_variable(solver_t* solver, symbol_t var);
+
+/**
+ * Retrive calculated variable value
+ * @param solver solver
+ * @param var variable
+ * @return calculated variable value
+ */
+num_t value(solver_t* solver, symbol_t var);
+
+/**
+ * Represents constraint declaration, defined in the next form:
+ * s1 * a1 + s2 * a2 + ... + sn * an <=|==|>= c
+ */
 struct constraint_desc_t {
     num_t      strength;
     size_t     term_count;
@@ -64,21 +91,62 @@ struct constraint_desc_t {
 
 /**
  * Add new constraint to solver
+ * @param solver solver
  * @param desc constraint description
  * @param[out] out_cons constraint handle
  * @return operation result
  */
 result_e add_constraint(solver_t* solver, const constraint_desc_t* desc, constraint_handle_t* out_cons);
+
+/**
+ * Remove constraint out of solver
+ * @param solver solver
+ * @param cons constraint handle
+ * @todo test
+ */
 void delete_constraint(solver_t* solver, constraint_handle_t cons);
 
-symbol_t create_variable(solver_t* solver);
-void delete_variable(solver_t* solver, symbol_t var);
-num_t value(solver_t* solver, symbol_t var);
-
+/**
+ * Make variable editable
+ * @param solver solver
+ * @param var variable
+ * @param strength strength of underlying constraint
+ * @return result of adding constraint
+ */
 result_e edit(solver_t* solver, symbol_t var, num_t strength);
+
+/**
+ * Stop editing variable
+ * @param solver solver
+ * @param var variable
+ * @todo test
+ */
 void disable_edit(solver_t* solver, symbol_t var);
+
+/**
+ * Check if variable is editable
+ * @param solver solver
+ * @param var variable
+ * @return true if variable is editable
+ * @todo test
+ */
 bool has_edit(solver_t* solver, symbol_t var);
+
+/**
+ * Provide desired variable values
+ * @param solver solver
+ * @param count number of modified variables
+ * @param vars editable symbols
+ * @param values desired values
+ */
 void suggest(solver_t *solver, uint16_t count, symbol_t* vars, num_t* values);
+
+/**
+ * Provide desired value for single variable
+ * @param solver solver
+ * @param var editable symbol
+ * @param value desired value
+ */
 void suggest(solver_t *solver, symbol_t var, num_t value);
 
 }
