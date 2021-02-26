@@ -40,7 +40,17 @@ struct solver_desc_t {
     allocator_t allocator;
 };
 
+/**
+ * Allocate and setup solver with provided allocator or use internal default one based on malloc/free
+ * @param desc solver creation info
+ * @return solver instance pointer
+ */
 solver_t* create_solver(const solver_desc_t* desc);
+
+/**
+ * Destroy solver and free all allocated memory
+ * @param solver solver
+ */
 void destroy_solver(solver_t* solver);
 
 struct constraint_desc_t {
@@ -52,6 +62,12 @@ struct constraint_desc_t {
     num_t      constant;
 };
 
+/**
+ * Add new constraint to solver
+ * @param desc constraint description
+ * @param[out] out_cons constraint handle
+ * @return operation result
+ */
 result_e add_constraint(solver_t* solver, const constraint_desc_t* desc, constraint_handle_t* out_cons);
 void delete_constraint(solver_t* solver, constraint_handle_t cons);
 
