@@ -974,6 +974,8 @@ static const allocator_t s_default_allocator = {
  */
 
 solver_t *create_solver(const solver_desc_t* desc) {
+    assert(desc);
+
     allocator_t allocator = desc->allocator;
     if (!allocator.allocate) {
         allocator = s_default_allocator;
@@ -1006,6 +1008,8 @@ solver_t *create_solver(const solver_desc_t* desc) {
 }
 
 void destroy_solver(solver_t *solver) {
+    assert(solver);
+
     free_array(&solver->allocator, &solver->vars);
     free_array(&solver->allocator, &solver->constraints);
     free_table(&solver->allocator, &solver->terms);
@@ -1014,10 +1018,14 @@ void destroy_solver(solver_t *solver) {
 }
 
 symbol_t create_variable(solver_t *solver) {
+    assert(solver);
     return new_symbol(solver, symbol_type_e::EXTERNAL);
 }
 
 void delete_variable(solver_t *solver, symbol_t var) {
+    assert(solver);
+    assert(var);
+
     auto var_data = (var_entry_t*)array_get(&solver->vars, var); 
     delete_constraint(solver, var_data->var.constraint);
 
@@ -1036,6 +1044,7 @@ void delete_variable(solver_t *solver, symbol_t var) {
 }
 
 num_t value(solver_t *solver, symbol_t var) {
+    assert(solver);
     assert(var);
 
     const term_coord_t key = {var, 0u};
@@ -1048,13 +1057,15 @@ num_t value(solver_t *solver, symbol_t var) {
 }
 
 result_e add_constraint(solver_t *solver, const constraint_desc_t* desc, constraint_handle_t *out_cons) {
-    result_e ret;
-    if (solver == NULL) return result_e::FAILED;
+    assert(solver);
+    assert(desc);
+    assert(out_cons);
 
     constraint_data_t cons_data = {};
     cons_data.strength = desc->strength;
     symbol_t row = make_row(solver, desc, &cons_data);
-    if ((ret = try_addrow(solver, row, &cons_data)) != result_e::OK) {
+    result_e ret = try_addrow(solver, row, &cons_data);
+    if (ret != result_e::OK) {
         remove_errors(solver, &cons_data);
     } else {
         optimize(solver, solver->objective);
@@ -1088,6 +1099,8 @@ result_e add_constraint(solver_t *solver, const constraint_desc_t* desc, constra
 }
 
 void delete_constraint(solver_t *solver, constraint_handle_t cons) {
+    assert(solver);
+    
     if (!cons) return;
 
     remove_vars(solver, cons);
@@ -1150,7 +1163,7 @@ bool has_edit(solver_t *solver, symbol_t var) {
 }
 
 void suggest(solver_t *solver, 
-        uint16_t count, symbol_t* vars, num_t* values) {
+        uint16_t count, const symbol_t* vars, const num_t* values) {
     for (uint16_t i = 0u; i < count; ++i) {
         symbol_t var = vars[i];
         num_t value = values[i];

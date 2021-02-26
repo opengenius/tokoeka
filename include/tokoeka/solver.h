@@ -139,7 +139,7 @@ bool has_edit(solver_t* solver, symbol_t var);
  * @param vars editable symbols
  * @param values desired values
  */
-void suggest(solver_t *solver, uint16_t count, symbol_t* vars, num_t* values);
+void suggest(solver_t *solver, uint16_t count, const symbol_t* vars, const num_t* values);
 
 /**
  * Provide desired value for single variable
