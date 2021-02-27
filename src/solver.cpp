@@ -35,7 +35,7 @@ typedef union
 
 typedef struct {
     symbol_t  marker;
-    symbol_t  other;
+    symbol_t  other; // nullable
     num_t     strength;
 } constraint_data_t;
 
@@ -543,6 +543,9 @@ static void init_row(terms_table_t* terms, symbol_t row, num_t constant) {
 ///////////////////////////////////////////////////////////////////////////////
 
 static var_data_t* get_var_data(solver_t *solver, symbol_t var) {
+    assert(solver);
+    assert(var);
+
     auto var_data = (var_entry_t*)array_get(&solver->vars, var);
     return &var_data->var;
 }
@@ -607,12 +610,16 @@ static constraint_data_t* constraint_data(solver_t *solver, constraint_handle_t 
 
 /* Cassowary algorithm */
 
+static void mark_infeasible(solver_t *solver, term_data_t* row_term) {
+    if (row_term->multiplier < 0.0f && !row_term->next_row) {
+        row_term->next_row = solver->infeasible_rows ? solver->infeasible_rows : row_term->pos.row;
+        solver->infeasible_rows = row_term->pos.row;
+    }
+}
+
 static void mark_infeasible(solver_t *solver, symbol_t row) {
     auto row_term = get_term(&solver->terms, {row, 0u});
-    if (row_term->multiplier < 0.0f && !row_term->next_row) {
-        row_term->next_row = solver->infeasible_rows ? solver->infeasible_rows : row;
-        solver->infeasible_rows = row;
-    }
+    mark_infeasible(solver, row_term);
 }
 
 static void pivot(solver_t *solver, symbol_t row, symbol_t entry, symbol_t exit) {
@@ -703,13 +710,11 @@ static result_e optimize(solver_t *solver, symbol_t objective) {
 }
 
 static symbol_t make_row(solver_t *solver, const constraint_desc_t* desc, constraint_data_t* cons) {
-    num_t sign_mutilplier = 1.0f;//desc->relation != AM_GREATEQUAL ? -1.0f : 1.0f;
-
     // use temp var to form the row
     symbol_t row = new_symbol(solver, symbol_type_e::SLACK);
-    init_row(&solver->terms, row, - desc->constant * sign_mutilplier);
+    init_row(&solver->terms, row, -desc->constant);
     for (size_t i = 0; i < desc->term_count; ++i) {
-        merge_row(&solver->terms, row, desc->symbols[i], desc->multipliers[i] * sign_mutilplier);
+        merge_row(&solver->terms, row, desc->symbols[i], desc->multipliers[i]);
     }
 
     if (desc->relation != relation_e::EQUAL) {
@@ -739,11 +744,10 @@ static symbol_t make_row(solver_t *solver, const constraint_desc_t* desc, constr
 static void remove_errors(solver_t *solver, constraint_data_t *cons) {
     if (is_error(solver, cons->marker))
         merge_row(&solver->terms, solver->objective, cons->marker, -cons->strength);
-    if (is_error(solver, cons->other))
+    if (cons->other && is_error(solver, cons->other))
         merge_row(&solver->terms, solver->objective, cons->other, -cons->strength);
     if (is_constant_row(&solver->terms, solver->objective)) {
         auto obj_constant_term = get_term(&solver->terms, {solver->objective, 0u});
-        assert(obj_constant_term->pos.row == solver->objective);
         obj_constant_term->multiplier = 0.0f;
     }
         
@@ -831,6 +835,7 @@ static result_e add_with_artificial(solver_t *solver, symbol_t row) {
         pivot(solver, a, entry, 0u);
     }
 
+    // remove artificial variable column
     for (auto sym_iter = first_symbol_iterator(&solver->terms, a); 
             sym_iter.term_res.term; 
             sym_iter = next_symbol_iterator(&solver->terms, sym_iter) ) {
@@ -838,13 +843,8 @@ static result_e add_with_artificial(solver_t *solver, symbol_t row) {
     }
     // reset next row to pass delete_variable assert, ifdef with NDEBUG?
     get_term(&solver->terms, {0, a})->next_row = 0u;
-
-    if (ret != result_e::OK) {
-        // @todo: check if its needed to remove  here
-        assert(false);
-        // remove_vars(solver, cons);
-    }
     delete_variable(solver, a);
+    
     return ret;
 }
 
@@ -866,16 +866,15 @@ static result_e try_addrow(solver_t *solver, symbol_t row, const constraint_data
         all_terms_dummy = all_terms_dummy && is_dummy(solver, term_key);
     }
 
-    if (subject == 0 && is_pivotable(solver, cons->marker)) {
-
+    if (!subject && is_pivotable(solver, cons->marker)) {
         term_data_t *mterm = get_term(&solver->terms, {row, cons->marker});
         if (mterm->multiplier < 0.0f) subject = cons->marker;
     }
-    if (subject == 0 && is_pivotable(solver, cons->other)) {
+    if (!subject && cons->other && is_pivotable(solver, cons->other)) {
         term_data_t *mterm = get_term(&solver->terms, {row, cons->other});
         if (mterm->multiplier < 0.0f) subject = cons->other;
     }
-    if (subject == 0 && all_terms_dummy) {
+    if (!subject && all_terms_dummy) {
         if (near_zero(value(solver, row)))
             subject = cons->marker;
         else {
@@ -883,7 +882,7 @@ static result_e try_addrow(solver_t *solver, symbol_t row, const constraint_data
             return result_e::UNSATISFIED;
         }
     }
-    if (subject == 0)
+    if (!subject)
         return add_with_artificial(solver, row);
     pivot(solver, row, subject, 0u);
     return result_e::OK;
@@ -895,14 +894,15 @@ static void delta_edit_constant(solver_t *solver, num_t delta, constraint_handle
     auto row_term = find_existing_term(&solver->terms, {cons->marker, 0u});
     if (row_term) { 
         row_term->multiplier -= delta; 
-        mark_infeasible(solver, cons->marker); 
+        mark_infeasible(solver, row_term); 
         return; 
     }
 
+    // cons->other always not null for edit var constraint
     row_term = find_existing_term(&solver->terms, {cons->other, 0u});
     if (row_term) { 
         row_term->multiplier += delta; 
-        mark_infeasible(solver, cons->other); 
+        mark_infeasible(solver, row_term); 
         return; 
     }
 
@@ -917,8 +917,9 @@ static void delta_edit_constant(solver_t *solver, num_t delta, constraint_handle
         auto row_const_term = get_term(&solver->terms, {it_row, 0u});
 
         row_const_term->multiplier += term_multiplier * delta;
-        if (!is_external(solver, it_row))
-            mark_infeasible(solver, it_row);
+        if (!is_external(solver, it_row)) {
+            mark_infeasible(solver, row_const_term);
+        }
     }
 }
 
@@ -1024,7 +1025,7 @@ symbol_t create_variable(solver_t *solver) {
 
 void delete_variable(solver_t *solver, symbol_t var) {
     assert(solver);
-    assert(var);
+    if (!var) return;
 
     auto var_data = (var_entry_t*)array_get(&solver->vars, var); 
     delete_constraint(solver, var_data->var.constraint);
@@ -1066,7 +1067,13 @@ result_e add_constraint(solver_t *solver, const constraint_desc_t* desc, constra
     symbol_t row = make_row(solver, desc, &cons_data);
     result_e ret = try_addrow(solver, row, &cons_data);
     if (ret != result_e::OK) {
+        // todo: test this path
+
         remove_errors(solver, &cons_data);
+        delete_variable(solver, cons_data.marker);
+        delete_variable(solver, cons_data.other);
+
+        return ret;
     } else {
         optimize(solver, solver->objective);
     }
@@ -1117,7 +1124,6 @@ void delete_constraint(solver_t *solver, constraint_handle_t cons) {
 }
 
 result_e edit(solver_t *solver, symbol_t var, num_t strength) {
-    if (var == 0) return result_e::FAILED;
     if (strength >= STRENGTH_STRONG) strength = STRENGTH_STRONG;
 
     auto var_data = get_var_data(solver, var);
