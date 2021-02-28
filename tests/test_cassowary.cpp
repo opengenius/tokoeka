@@ -242,12 +242,43 @@ TEST_CASE("edit variable", "[cassowary]") {
     REQUIRE(value(S, mid) == 95.0f);
     REQUIRE(value(S, right) == 100.0f);
 
+    // mid == 50 | weak
+    {
+        symbol_t symbols[] = {mid};
+        num_t multipiers[] = {1.0f};
+
+        constraint_desc_t desc = {};
+        desc.strength = STRENGTH_WEAK;
+        desc.term_count = 1;
+        desc.symbols = symbols;
+        desc.multipliers = multipiers;
+        desc.relation = relation_e::EQUAL;
+        desc.constant = 50.0f;
+
+        constraint_handle_t c;
+        result_e r = add_constraint(S, &desc, &c);
+        REQUIRE(r == result_e::OK);
+    }
+
+    REQUIRE(value(S, left) == 45.0f);
+    REQUIRE(value(S, mid) == 50.0f);
+    REQUIRE(value(S, right) == 55.0f);
+
     edit(S, mid, STRENGTH_STRONG);
+    REQUIRE(has_edit(S, mid));
+
     suggest(S, mid, 3.);
 
     REQUIRE(value(S, left) == 0.0f);
     REQUIRE(value(S, mid) == 5.0f);
     REQUIRE(value(S, right) == 10.0f);
+
+    disable_edit(S, mid);
+    REQUIRE(!has_edit(S, mid));
+
+    REQUIRE(value(S, left) == 45.0f);
+    REQUIRE(value(S, mid) == 50.0f);
+    REQUIRE(value(S, right) == 55.0f);
 
     destroy_solver(S);
 }
@@ -307,12 +338,15 @@ TEST_CASE("match heights", "[cassowary]") {
     }
 
     edit(S, child.height, STRENGTH_STRONG);
-    suggest(S, child.height, 24.);
+    REQUIRE(has_edit(S, child.height));
+    REQUIRE(!has_edit(S, parent.height));
 
+    suggest(S, child.height, 24.);
     REQUIRE(value(S, parent.height) == 24.0f);
 
     destroy_solver(S);
 }
 
+// delete_variable
 // delete constraint test
 // inconsistent constraints

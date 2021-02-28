@@ -119,7 +119,6 @@ result_e edit(solver_t* solver, symbol_t var, num_t strength);
  * Stop editing variable
  * @param solver solver
  * @param var variable
- * @todo test
  */
 void disable_edit(solver_t* solver, symbol_t var);
 
@@ -128,7 +127,6 @@ void disable_edit(solver_t* solver, symbol_t var);
  * @param solver solver
  * @param var variable
  * @return true if variable is editable
- * @todo test
  */
 bool has_edit(solver_t* solver, symbol_t var);
 

@@ -245,6 +245,9 @@ int main()
         });
     }
 
+    disable_edit(S, widthVar);
+    disable_edit(S, heightVar);
+
     destroy_solver(S);
     return 0;
 }

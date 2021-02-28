@@ -750,9 +750,6 @@ static void remove_errors(solver_t *solver, constraint_data_t *cons) {
         auto obj_constant_term = get_term(&solver->terms, {solver->objective, 0u});
         obj_constant_term->multiplier = 0.0f;
     }
-        
-    cons->marker = cons->other = 0u;
-    // @todo: check for var leakage
 }
 
 // const
@@ -796,7 +793,11 @@ static void remove_vars(solver_t *solver, constraint_handle_t cons) {
         pivot(solver, exit, marker, exit);
     }
     free_row(&solver->terms, marker);
+
     optimize(solver, solver->objective);
+
+    delete_variable(solver, cons_data->marker);
+    delete_variable(solver, cons_data->other);
 }
 
 static result_e add_with_artificial(solver_t *solver, symbol_t row) {
@@ -1111,10 +1112,6 @@ void delete_constraint(solver_t *solver, constraint_handle_t cons) {
     if (!cons) return;
 
     remove_vars(solver, cons);
-    auto cons_data = constraint_data(solver, cons);
-
-    delete_variable(solver, cons_data->marker);
-    delete_variable(solver, cons_data->other);
 
     // link to free list
     auto free_list_head = (constraint_entry_t*)array_get(&solver->constraints, FREELIST_INDEX);
