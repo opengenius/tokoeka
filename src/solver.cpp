@@ -9,6 +9,8 @@
 
 namespace tokoeka {
 
+namespace {
+
 static_assert(std::is_same<num_t, double>::value, "");
 const num_t NUM_MAX = DBL_MAX;
 const num_t NUM_EPS = 1e-6;
@@ -21,53 +23,55 @@ enum class symbol_type_e : uint8_t {
     DUMMY
 };
 
-typedef struct {
+struct var_data_t {
     symbol_type_e       type;
     constraint_handle_t constraint;
     num_t               edit_value;
-} var_data_t;
+};
 
-typedef union
+union var_entry_t
 {
     var_data_t var;
     uint32_t   next; // free list
-} var_entry_t;
+};
 
-typedef struct {
+struct constraint_data_t {
     symbol_t  marker;
     symbol_t  other; // nullable
     num_t     strength;
-} constraint_data_t;
+};
 
-typedef union
+union constraint_entry_t
 {
     constraint_data_t constraint;
     uint32_t          next; // free list
-} constraint_entry_t;
+};
 
-typedef struct {
+struct term_coord_t {
     symbol_t row, column;
-} term_coord_t;
+};
 
-typedef struct {
+struct term_data_t {
     term_coord_t pos;
     symbol_t     prev_row, next_row;
     symbol_t     prev_column, next_column;
     // padding: 4 bytes
     num_t        multiplier;
-} term_data_t;
+};
 
-typedef struct {
+struct array_t {
     void*  data_buf;
     size_t size; // max entries (size * entry_size bytes)
     size_t entry_size;
-} array_t;
+};
 
-typedef struct {
+struct terms_table_t {
     term_data_t* data;
     uint32_t     size;
     uint32_t     count;
-} terms_table_t;
+};
+
+} // internal namespace
 
 struct solver_t {
     allocator_t allocator;
@@ -83,6 +87,7 @@ struct solver_t {
     symbol_t infeasible_rows; // use next constant term row links for infeasible rows
 };
 
+namespace {
 
 /* utils */
 
@@ -970,6 +975,8 @@ static const allocator_t s_default_allocator = {
     default_free,
     nullptr
 };
+
+} // internal namespace
 
 /**
  * Public interface implementation
