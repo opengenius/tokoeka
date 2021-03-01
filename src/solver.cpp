@@ -629,6 +629,7 @@ static void mark_infeasible(solver_t *solver, symbol_t row) {
 
 static void pivot(solver_t *solver, symbol_t row, symbol_t entry, symbol_t exit) {
     if (solver->terms.size < solver->terms.count * 2) {
+        // todo: find right place for this
         table_grow_rehash(&solver->allocator, &solver->terms, solver->terms.size * 2);
     }
 
@@ -798,11 +799,10 @@ static void remove_vars(solver_t *solver, constraint_handle_t cons) {
         pivot(solver, exit, marker, exit);
     }
     free_row(&solver->terms, marker);
-
-    optimize(solver, solver->objective);
-
     delete_variable(solver, cons_data->marker);
     delete_variable(solver, cons_data->other);
+
+    optimize(solver, solver->objective);
 }
 
 static result_e add_with_artificial(solver_t *solver, symbol_t row) {
@@ -854,9 +854,7 @@ static result_e add_with_artificial(solver_t *solver, symbol_t row) {
     return ret;
 }
 
-static result_e try_addrow(solver_t *solver, symbol_t row, const constraint_data_t *cons) {
-    symbol_t subject = 0u;
-
+static symbol_t choose_subject(solver_t *solver, symbol_t row, const constraint_data_t *cons, bool* out_all_dummy) {
     bool all_terms_dummy = true;
     for (auto term_it = first_row_term_iterator(&solver->terms, row);
             term_it.term_res.term;
@@ -865,26 +863,35 @@ static result_e try_addrow(solver_t *solver, symbol_t row, const constraint_data
 
         auto term_key = term_ptr->pos.column;
         if (is_external(solver, term_key)) { 
-            subject = term_key; 
-            break; 
+            return term_key;  
         }
 
         all_terms_dummy = all_terms_dummy && is_dummy(solver, term_key);
     }
 
-    if (!subject && is_pivotable(solver, cons->marker)) {
+    if (is_pivotable(solver, cons->marker)) {
         term_data_t *mterm = get_term(&solver->terms, {row, cons->marker});
-        if (mterm->multiplier < 0.0f) subject = cons->marker;
+        if (mterm->multiplier < 0.0f) return cons->marker;
     }
-    if (!subject && cons->other && is_pivotable(solver, cons->other)) {
+    if (cons->other && is_pivotable(solver, cons->other)) {
         term_data_t *mterm = get_term(&solver->terms, {row, cons->other});
-        if (mterm->multiplier < 0.0f) subject = cons->other;
+        if (mterm->multiplier < 0.0f) return cons->other;
     }
+
+    // this makes sense only if no subject was found
+    *out_all_dummy = all_terms_dummy;
+    return 0u;
+}
+
+static result_e try_addrow(solver_t *solver, symbol_t row, const constraint_data_t *cons) {
+    bool all_terms_dummy = false;
+    symbol_t subject = choose_subject(solver, row, cons, &all_terms_dummy);
     if (!subject && all_terms_dummy) {
         if (near_zero(value(solver, row)))
             subject = cons->marker;
         else {
             free_row(&solver->terms, row);
+            delete_variable(solver, row);
             return result_e::UNSATISFIED;
         }
     }
@@ -1007,7 +1014,7 @@ solver_t *create_solver(const solver_desc_t* desc) {
     cons_free_list_head->next = 0u;
     ++solver->first_unused_constraint_index; // reserve 0 for invalid index, 0 is used as free list head
 
-    init_table(&solver->allocator, &solver->terms, PAGE_SIZE / sizeof(term_data_t));// *16
+    init_table(&solver->allocator, &solver->terms, PAGE_SIZE / sizeof(term_data_t));
     
     // init objective function
     solver->objective = new_symbol(solver, symbol_type_e::EXTERNAL);
@@ -1076,7 +1083,6 @@ result_e add_constraint(solver_t *solver, const constraint_desc_t* desc, constra
     result_e ret = try_addrow(solver, row, &cons_data);
     if (ret != result_e::OK) {
         // todo: test this path
-
         remove_errors(solver, &cons_data);
         delete_variable(solver, cons_data.marker);
         delete_variable(solver, cons_data.other);
