@@ -23,15 +23,15 @@ The library is still under development, here are some things that must be resolv
 ## Setup
 The project is configured for the usage with CMake, link tokoeka target as a library to include public directories and link with its static library as well. In the case the library is placed in project tree:
 
-'''cmake
+```cmake
 add_subdirectory(tokoeka)
 add_executable(target_name ..)
 target_link_libraries(target_name PRIVATE tokoeka)
-'''
+```
 
 Or use [FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html):
 
-'''cmake
+```cmake
 Include(FetchContent)
 
 FetchContent_Declare(
@@ -42,5 +42,5 @@ FetchContent_MakeAvailable(tokoeka)
 
 add_executable(target_name ..)
 target_link_libraries(tests PRIVATE tokoeka)
-'''
+```
 
