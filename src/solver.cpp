@@ -59,10 +59,10 @@ struct term_data_t {
     num_t        multiplier;
 };
 
+template<typename T>
 struct array_t {
-    void*  data_buf;
-    size_t size; // max entries (size * entry_size bytes)
-    size_t entry_size;
+    T*     entries;
+    size_t size; // max entries (size * sizeof(T) bytes)
 };
 
 struct terms_table_t {
@@ -76,10 +76,10 @@ struct terms_table_t {
 struct solver_t {
     allocator_t allocator;
 
-    array_t vars; // var_data_t array
+    array_t<var_entry_t> vars;
     uint32_t first_unused_var_index;
 
-    array_t constraints; // constraint_data_t array
+    array_t<constraint_entry_t> constraints;
     uint32_t first_unused_constraint_index;
 
     terms_table_t terms;
@@ -111,36 +111,32 @@ static void free(allocator_t* allocator, void* p) {
 
 /* array */
 
-static void init_array(array_t *arr, size_t entry_size) {
-    arr->entry_size = entry_size; 
+template<typename T>
+static void free_array(allocator_t* alloc, array_t<T>* arr) {
+    free(alloc, arr->entries);
 }
 
-static void free_array(allocator_t* alloc, array_t *arr) {
-    size_t size = arr->size * arr->entry_size;
-    if (size) free(alloc, arr->data_buf);
-    init_array(arr, arr->entry_size);
-}
-
-static size_t array_size(const array_t *arr) {
+template<typename T>
+static size_t array_size(const array_t<T>* arr) {
     return arr->size;
 }
 
-static void* array_get(array_t *arr, size_t position) {
-    assert(arr->data_buf);
-    assert(position < arr->size);
-
-    size_t offset = position * arr->entry_size;
-    return &((char*)arr->data_buf)[offset];
+template<typename T>
+static T& array_get(array_t<T>& arr, size_t position) {
+    assert(arr.entries);
+    assert(position < arr.size);
+    return arr.entries[position];
 }
 
-static void array_grow(allocator_t* alloc, array_t *arr, size_t new_size) {
-    size_t new_size_in_bytes = new_size * arr->entry_size;
-    void* new_buf = allocate(alloc, new_size_in_bytes);
-    if (arr->data_buf) {
-        memcpy(new_buf, arr->data_buf, new_size_in_bytes);
-        free(alloc, arr->data_buf);
+template<typename T>
+static void array_grow(allocator_t* alloc, array_t<T>* arr, size_t new_size) {
+    const size_t new_size_in_bytes = new_size * sizeof(T);
+    T* new_buf = (T*)allocate(alloc, new_size_in_bytes);
+    if (arr->entries) {
+        memcpy(new_buf, arr->entries, new_size_in_bytes);
+        free(alloc, arr->entries);
     }
-    arr->data_buf = new_buf;
+    arr->entries = (T*)new_buf;
     arr->size = new_size;
 }
 
@@ -551,8 +547,7 @@ static var_data_t* get_var_data(solver_t *solver, symbol_t var) {
     assert(solver);
     assert(var);
 
-    auto var_data = (var_entry_t*)array_get(&solver->vars, var);
-    return &var_data->var;
+    return &array_get(solver->vars, var).var;
 }
 
 static bool is_external(solver_t* solver, symbol_t key) {
@@ -579,10 +574,10 @@ static symbol_t new_symbol(solver_t *solver, symbol_type_e type) {
     symbol_t id = {};
 
     // try free list
-    auto free_list_head = (var_entry_t*)array_get(&solver->vars, FREELIST_INDEX); 
+    auto free_list_head = &array_get(solver->vars, FREELIST_INDEX); 
     if (free_list_head->next) {
         id = free_list_head->next;
-        auto el = (var_entry_t*)array_get(&solver->vars, id); 
+        auto el = &array_get(solver->vars, id); 
         free_list_head->next = el->next;
 
     // try unused elements
@@ -609,7 +604,7 @@ static symbol_t new_symbol(solver_t *solver, symbol_type_e type) {
 }
 
 static constraint_data_t* constraint_data(solver_t *solver, constraint_handle_t cons_id) {
-    auto cons_entry = (constraint_entry_t*)array_get(&solver->constraints, cons_id);
+    auto cons_entry = &array_get(solver->constraints, cons_id);
     return &cons_entry->constraint;
 }
 
@@ -1002,15 +997,13 @@ solver_t *create_solver(const solver_desc_t* desc) {
 
     // reserve single page size variable array
     const int PAGE_SIZE = 4096; // todo: pass as input
-    init_array(&solver->vars, sizeof(var_entry_t));
     array_grow(&solver->allocator, &solver->vars, PAGE_SIZE / sizeof(var_entry_t));
-    auto free_list_head = (var_entry_t*)array_get(&solver->vars, FREELIST_INDEX);
+    auto free_list_head = &array_get(solver->vars, FREELIST_INDEX);
     free_list_head->next = 0u;
     ++solver->first_unused_var_index; // reserve 0 for invalid index, 0 is used as free list head
 
-    init_array(&solver->constraints, sizeof(constraint_entry_t));
     array_grow(&solver->allocator, &solver->constraints, PAGE_SIZE / sizeof(constraint_entry_t));
-    auto cons_free_list_head = (constraint_entry_t*)array_get(&solver->constraints, FREELIST_INDEX);
+    auto cons_free_list_head = &array_get(solver->constraints, FREELIST_INDEX);
     cons_free_list_head->next = 0u;
     ++solver->first_unused_constraint_index; // reserve 0 for invalid index, 0 is used as free list head
 
@@ -1042,7 +1035,7 @@ void delete_variable(solver_t *solver, symbol_t var) {
     assert(solver);
     if (!var) return;
 
-    auto var_data = (var_entry_t*)array_get(&solver->vars, var); 
+    auto var_data = &array_get(solver->vars, var); 
     remove_constraint(solver, var_data->var.constraint);
 
     // todo: delete rows? 
@@ -1054,7 +1047,7 @@ void delete_variable(solver_t *solver, symbol_t var) {
     delete_term(&solver->terms, &term_it, unlink_frags_e::NONE);
 
     // link to free list
-    auto free_list_head = (var_entry_t*)array_get(&solver->vars, FREELIST_INDEX);
+    auto free_list_head = &array_get(solver->vars, FREELIST_INDEX);
     var_data->next = free_list_head->next;
     free_list_head->next = var;
 }
@@ -1094,10 +1087,10 @@ result_e add_constraint(solver_t *solver, const constraint_desc_t* desc, constra
 
     int id = 0;
     // try free list
-    auto free_list_head = (constraint_entry_t*)array_get(&solver->constraints, FREELIST_INDEX); 
+    auto free_list_head = &array_get(solver->constraints, FREELIST_INDEX); 
     if (free_list_head->next) {
         id = free_list_head->next;
-        auto el = (constraint_entry_t*)array_get(&solver->constraints, id); 
+        auto el = &array_get(solver->constraints, id); 
         free_list_head->next = el->next;
 
     // try unused elements
@@ -1127,8 +1120,8 @@ void remove_constraint(solver_t *solver, constraint_handle_t cons) {
     remove_vars(solver, cons);
 
     // link to free list
-    auto free_list_head = (constraint_entry_t*)array_get(&solver->constraints, FREELIST_INDEX);
-    auto entry = (constraint_entry_t*)array_get(&solver->constraints, cons); 
+    auto free_list_head = &array_get(solver->constraints, FREELIST_INDEX);
+    auto entry = &array_get(solver->constraints, cons); 
     entry->next = free_list_head->next;
     free_list_head->next = cons;
 }
