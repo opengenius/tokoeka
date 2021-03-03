@@ -1043,7 +1043,7 @@ void delete_variable(solver_t *solver, symbol_t var) {
     if (!var) return;
 
     auto var_data = (var_entry_t*)array_get(&solver->vars, var); 
-    delete_constraint(solver, var_data->var.constraint);
+    remove_constraint(solver, var_data->var.constraint);
 
     // todo: delete rows? 
     assert(!has_row(&solver->terms, var));
@@ -1119,7 +1119,7 @@ result_e add_constraint(solver_t *solver, const constraint_desc_t* desc, constra
     return ret;
 }
 
-void delete_constraint(solver_t *solver, constraint_handle_t cons) {
+void remove_constraint(solver_t *solver, constraint_handle_t cons) {
     assert(solver);
     
     if (!cons) return;
@@ -1138,7 +1138,7 @@ result_e edit(solver_t *solver, symbol_t var, num_t strength) {
 
     auto var_data = get_var_data(solver, var);
     if (var_data->constraint) {
-        delete_constraint(solver, var_data->constraint);
+        remove_constraint(solver, var_data->constraint);
     }
 
     symbol_t symbols[] = {var};
@@ -1170,7 +1170,7 @@ void disable_edit(solver_t *solver, symbol_t var) {
 
     var_data->constraint = 0;
     var_data->edit_value = 0.0f;
-    delete_constraint(solver, var_constraint);
+    remove_constraint(solver, var_constraint);
 }
 
 bool has_edit(solver_t *solver, symbol_t var) { 

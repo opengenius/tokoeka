@@ -26,6 +26,11 @@ TEST_CASE("simple (x==18)", "[cassowary]") {
     REQUIRE(r == result_e::OK);
     REQUIRE(value(S, x) == 18.0f);
 
+    remove_constraint(S, c);
+    REQUIRE(value(S, x) == 0.0f);
+    
+    delete_variable(S, x);
+
     destroy_solver(S);
 }
 

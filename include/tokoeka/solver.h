@@ -61,10 +61,10 @@ void destroy_solver(solver_t* solver);
 symbol_t create_variable(solver_t* solver);
 
 /**
- * Remove variable from solver, expects variable is not used(poor design)
+ * Remove variable from solver, expects variable is not used(poor design?)
  * @param solver solver
  * @param var variable to remove
- * @todo test, remove independently of referring constraint?
+ * @todo remove independently of referring constraints?
  */
 void delete_variable(solver_t* solver, symbol_t var);
 
@@ -102,9 +102,8 @@ result_e add_constraint(solver_t* solver, const constraint_desc_t* desc, constra
  * Remove constraint out of solver
  * @param solver solver
  * @param cons constraint handle
- * @todo test
  */
-void delete_constraint(solver_t* solver, constraint_handle_t cons);
+void remove_constraint(solver_t* solver, constraint_handle_t cons);
 
 /**
  * Make variable editable
