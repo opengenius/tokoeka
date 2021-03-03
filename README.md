@@ -6,6 +6,14 @@ This library was derived from [Amoeba](https://github.com/starwing/amoeba) and [
 The main idea is to get rid of lots of small allocations and provide fast row iteration by maintaining list of symbol rows.
 Performance characteristics are highly dependant on hash the table implementation and its load factor (current is linear probing with backward shift deletion).
 
+## Warning
+The library is development phase:
+* needs better hash table implementation
+* fix manual rehashing/adding to full hash table
+* test unsuccessful add_constraint paths
+* delete variables used in constraints?
+* cache term data for faster add_row and add_term
+
 ## Features
 * up to 64k variables (including internal objective, slack, error and dummy ones)
 * 4 total allocation: variables buffer, constraint buffer, terms buffer for open addressing hash table and one for the solver struct.
