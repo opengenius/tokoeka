@@ -29,22 +29,10 @@ struct var_data_t {
     num_t               edit_value;
 };
 
-union var_entry_t
-{
-    var_data_t var;
-    uint32_t   next; // free list
-};
-
 struct constraint_data_t {
     symbol_t  marker;
     symbol_t  other; // nullable
     num_t     strength;
-};
-
-union constraint_entry_t
-{
-    constraint_data_t constraint;
-    uint32_t          next; // free list
 };
 
 struct term_coord_t {
@@ -65,6 +53,21 @@ struct array_t {
     size_t size; // max entries (size * sizeof(T) bytes)
 };
 
+/**
+ * array_t with free list, 0 element is reserved for head
+ */
+template<typename T>
+struct sparse_array_t {
+    union entry_t
+    {
+        T        value;
+        uint32_t next;
+    };
+    
+    array_t<entry_t> array;
+    uint32_t   first_unused_index;
+};
+
 struct terms_table_t {
     term_data_t* data;
     uint32_t     size;
@@ -76,11 +79,8 @@ struct terms_table_t {
 struct solver_t {
     allocator_t allocator;
 
-    array_t<var_entry_t> vars;
-    uint32_t first_unused_var_index;
-
-    array_t<constraint_entry_t> constraints;
-    uint32_t first_unused_constraint_index;
+    sparse_array_t<var_data_t> vars;
+    sparse_array_t<constraint_data_t> constraints;
 
     terms_table_t terms;
     symbol_t objective;
@@ -109,7 +109,7 @@ static void free(allocator_t* allocator, void* p) {
     allocator->free(allocator->ud, p);
 }
 
-/* array */
+/* array_t */
 
 template<typename T>
 static void free_array(allocator_t* alloc, array_t<T>* arr) {
@@ -138,6 +138,62 @@ static void array_grow(allocator_t* alloc, array_t<T>* arr, size_t new_size) {
     }
     arr->entries = (T*)new_buf;
     arr->size = new_size;
+}
+
+/* sparse_array_t */
+
+template<typename T>
+static void array_init(allocator_t* alloc, sparse_array_t<T>& arr, size_t page_size) {
+    array_grow(alloc, &arr.array, page_size / sizeof(sparse_array_t<T>::entry_t));
+    auto& free_list_head_entry = array_get(arr.array, FREELIST_INDEX);
+    free_list_head_entry.next = 0u;
+    arr.first_unused_index = 1u;
+}
+
+template<typename T>
+static void free_array(allocator_t* alloc, sparse_array_t<T>& arr) {
+    free_array(alloc, &arr.array);
+    arr.first_unused_index = 0u;
+}
+
+template<typename T>
+static T& array_get(sparse_array_t<T>& arr, size_t position) {
+    return array_get(arr.array, position).value;
+}
+
+template<typename T>
+static uint32_t array_add(allocator_t* alloc, sparse_array_t<T>& arr, const T& v) {
+    uint32_t new_index = {};
+    // try free list
+    auto& free_list_head_entry = array_get(arr.array, FREELIST_INDEX); 
+    if (free_list_head_entry.next) {
+        new_index = free_list_head_entry.next;
+        auto& el = array_get(arr.array, new_index); 
+        free_list_head_entry.next = el.next;
+
+    // try unused elements
+    } else if (arr.first_unused_index < array_size(&arr.array)) {
+        new_index = arr.first_unused_index++;
+
+    // grow
+    } else {
+        auto new_size = array_size(&arr.array) * 2;
+        array_grow(alloc, &arr.array, new_size);
+
+        new_index = arr.first_unused_index++;
+    }
+
+    array_get(arr, new_index) = v;
+
+    return new_index;
+}
+
+template<typename T>
+static void array_remove(sparse_array_t<T>& arr, uint32_t index) {
+    auto& free_list_head_entry = array_get(arr.array, FREELIST_INDEX);
+    auto& at_index_entry = array_get(arr.array, index); 
+    at_index_entry.next = free_list_head_entry.next;
+    free_list_head_entry.next = index;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -547,7 +603,7 @@ static var_data_t* get_var_data(solver_t *solver, symbol_t var) {
     assert(solver);
     assert(var);
 
-    return &array_get(solver->vars, var).var;
+    return &array_get(solver->vars, var);
 }
 
 static bool is_external(solver_t* solver, symbol_t key) {
@@ -571,31 +627,9 @@ static bool is_pivotable(solver_t* solver, symbol_t key) {
 }
 
 static symbol_t new_symbol(solver_t *solver, symbol_type_e type) {
-    symbol_t id = {};
-
-    // try free list
-    auto free_list_head = &array_get(solver->vars, FREELIST_INDEX); 
-    if (free_list_head->next) {
-        id = free_list_head->next;
-        auto el = &array_get(solver->vars, id); 
-        free_list_head->next = el->next;
-
-    // try unused elements
-    } else if (solver->first_unused_var_index < array_size(&solver->vars)) {
-        id = solver->first_unused_var_index++;
-
-    // grow
-    } else {
-        auto new_size = array_size(&solver->vars) * 2;
-        array_grow(&solver->allocator, &solver->vars, new_size);
-
-        id = solver->first_unused_var_index++;
-    }
-
-    static const var_data_t init_data = {};
-    auto var = get_var_data(solver, id);
-    *var = init_data;
-    var->type = type;
+    var_data_t data = {};
+    data.type = type;
+    symbol_t id = array_add(&solver->allocator, solver->vars, data);
 
     // init symbol link list
     add_term(&solver->terms, 0u, id, 0.0f);
@@ -604,8 +638,7 @@ static symbol_t new_symbol(solver_t *solver, symbol_type_e type) {
 }
 
 static constraint_data_t* constraint_data(solver_t *solver, constraint_handle_t cons_id) {
-    auto cons_entry = &array_get(solver->constraints, cons_id);
-    return &cons_entry->constraint;
+    return &array_get(solver->constraints, cons_id);
 }
 
 /* Cassowary algorithm */
@@ -997,15 +1030,8 @@ solver_t *create_solver(const solver_desc_t* desc) {
 
     // reserve single page size variable array
     const int PAGE_SIZE = 4096; // todo: pass as input
-    array_grow(&solver->allocator, &solver->vars, PAGE_SIZE / sizeof(var_entry_t));
-    auto free_list_head = &array_get(solver->vars, FREELIST_INDEX);
-    free_list_head->next = 0u;
-    ++solver->first_unused_var_index; // reserve 0 for invalid index, 0 is used as free list head
-
-    array_grow(&solver->allocator, &solver->constraints, PAGE_SIZE / sizeof(constraint_entry_t));
-    auto cons_free_list_head = &array_get(solver->constraints, FREELIST_INDEX);
-    cons_free_list_head->next = 0u;
-    ++solver->first_unused_constraint_index; // reserve 0 for invalid index, 0 is used as free list head
+    array_init(&solver->allocator, solver->vars, PAGE_SIZE);
+    array_init(&solver->allocator, solver->constraints, PAGE_SIZE);
 
     init_table(&solver->allocator, &solver->terms, PAGE_SIZE / sizeof(term_data_t));
     
@@ -1019,8 +1045,8 @@ solver_t *create_solver(const solver_desc_t* desc) {
 void destroy_solver(solver_t *solver) {
     assert(solver);
 
-    free_array(&solver->allocator, &solver->vars);
-    free_array(&solver->allocator, &solver->constraints);
+    free_array(&solver->allocator, solver->vars);
+    free_array(&solver->allocator, solver->constraints);
     free_table(&solver->allocator, &solver->terms);
 
     free(&solver->allocator, solver);
@@ -1035,8 +1061,8 @@ void delete_variable(solver_t *solver, symbol_t var) {
     assert(solver);
     if (!var) return;
 
-    auto var_data = &array_get(solver->vars, var); 
-    remove_constraint(solver, var_data->var.constraint);
+    const auto& var_data = array_get(solver->vars, var); 
+    remove_constraint(solver, var_data.constraint);
 
     // todo: delete rows? 
     assert(!has_row(&solver->terms, var));
@@ -1047,9 +1073,7 @@ void delete_variable(solver_t *solver, symbol_t var) {
     delete_term(&solver->terms, &term_it, unlink_frags_e::NONE);
 
     // link to free list
-    auto free_list_head = &array_get(solver->vars, FREELIST_INDEX);
-    var_data->next = free_list_head->next;
-    free_list_head->next = var;
+    array_remove(solver->vars, var);
 }
 
 num_t value(solver_t *solver, symbol_t var) {
@@ -1085,28 +1109,7 @@ result_e add_constraint(solver_t *solver, const constraint_desc_t* desc, constra
         optimize(solver, solver->objective);
     }
 
-    int id = 0;
-    // try free list
-    auto free_list_head = &array_get(solver->constraints, FREELIST_INDEX); 
-    if (free_list_head->next) {
-        id = free_list_head->next;
-        auto el = &array_get(solver->constraints, id); 
-        free_list_head->next = el->next;
-
-    // try unused elements
-    } else if (solver->first_unused_constraint_index < array_size(&solver->constraints)) {
-        id = solver->first_unused_constraint_index++;
-
-    // grow
-    } else {
-        auto new_size = array_size(&solver->constraints) * 2;
-        array_grow(&solver->allocator, &solver->constraints, new_size);
-
-        id = solver->first_unused_constraint_index++;
-    }
-
-    *constraint_data(solver, id) = cons_data;
-    *out_cons = id;
+    *out_cons = array_add(&solver->allocator, solver->constraints, cons_data);
 
     assert(solver->infeasible_rows == 0);
     return ret;
@@ -1120,10 +1123,7 @@ void remove_constraint(solver_t *solver, constraint_handle_t cons) {
     remove_vars(solver, cons);
 
     // link to free list
-    auto free_list_head = &array_get(solver->constraints, FREELIST_INDEX);
-    auto entry = &array_get(solver->constraints, cons); 
-    entry->next = free_list_head->next;
-    free_list_head->next = cons;
+    array_remove(solver->constraints, cons);
 }
 
 result_e edit(solver_t *solver, symbol_t var, num_t strength) {
