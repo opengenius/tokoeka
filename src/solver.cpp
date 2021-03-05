@@ -1126,7 +1126,7 @@ void remove_constraint(solver_t *solver, constraint_handle_t cons) {
 }
 
 result_e enable_edit(solver_t *solver, symbol_t var, num_t strength) {
-    if (strength >= STRENGTH_STRONG) strength = STRENGTH_STRONG;
+    strength = (strength >= STRENGTH_STRONG) ? STRENGTH_STRONG : strength;
 
     auto var_data = get_var_data(solver, var);
     if (var_data->constraint) {
@@ -1144,11 +1144,13 @@ result_e enable_edit(solver_t *solver, symbol_t var, num_t strength) {
     desc.relation = relation_e::EQUAL;
 
     constraint_handle_t cons;
-    if (add_constraint(solver, &desc, &cons) != result_e::OK) assert(0); // todo
+    auto res = add_constraint(solver, &desc, &cons);
+    assert(res == result_e::OK && "must pivot to var or constraint marker/error symbol");
 
     var_data = get_var_data(solver, var);
     var_data->constraint = cons;
     var_data->edit_value = 0u;
+
     return result_e::OK;
 }
 
