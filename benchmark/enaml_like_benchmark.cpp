@@ -48,8 +48,8 @@ static void build_solver(solver_t* S, symbol_t width, symbol_t height)
     symbol_t fl3width        = create_variable(S);
 
     // Add the edit variables
-    edit(S, width, STRENGTH_STRONG);
-    edit(S, height, STRENGTH_STRONG);
+    enable_edit(S, width, STRENGTH_STRONG);
+    enable_edit(S, height, STRENGTH_STRONG);
 
     // Add the constraints
     const struct {

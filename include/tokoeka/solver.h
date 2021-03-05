@@ -112,7 +112,7 @@ void remove_constraint(solver_t* solver, constraint_handle_t cons);
  * @param strength strength of underlying constraint
  * @return result of adding constraint
  */
-result_e edit(solver_t* solver, symbol_t var, num_t strength);
+result_e enable_edit(solver_t* solver, symbol_t var, num_t strength);
 
 /**
  * Stop editing variable

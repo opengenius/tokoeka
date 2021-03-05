@@ -269,7 +269,7 @@ TEST_CASE("edit variable", "[cassowary]") {
     REQUIRE(value(S, mid) == 50.0f);
     REQUIRE(value(S, right) == 55.0f);
 
-    edit(S, mid, STRENGTH_STRONG);
+    enable_edit(S, mid, STRENGTH_STRONG);
     REQUIRE(has_edit(S, mid));
 
     suggest(S, mid, 3.);
@@ -342,7 +342,7 @@ TEST_CASE("match heights", "[cassowary]") {
         REQUIRE(r == result_e::OK);
     }
 
-    edit(S, child.height, STRENGTH_STRONG);
+    enable_edit(S, child.height, STRENGTH_STRONG);
     REQUIRE(has_edit(S, child.height));
     REQUIRE(!has_edit(S, parent.height));
 

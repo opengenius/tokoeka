@@ -1117,7 +1117,6 @@ result_e add_constraint(solver_t *solver, const constraint_desc_t* desc, constra
 
 void remove_constraint(solver_t *solver, constraint_handle_t cons) {
     assert(solver);
-    
     if (!cons) return;
 
     remove_vars(solver, cons);
@@ -1126,7 +1125,7 @@ void remove_constraint(solver_t *solver, constraint_handle_t cons) {
     array_remove(solver->constraints, cons);
 }
 
-result_e edit(solver_t *solver, symbol_t var, num_t strength) {
+result_e enable_edit(solver_t *solver, symbol_t var, num_t strength) {
     if (strength >= STRENGTH_STRONG) strength = STRENGTH_STRONG;
 
     auto var_data = get_var_data(solver, var);
@@ -1180,7 +1179,7 @@ void suggest(solver_t *solver,
         auto var_data = get_var_data(solver, var);
 
         if (var_data->constraint == 0) {
-            edit(solver, var, STRENGTH_MEDIUM);
+            enable_edit(solver, var, STRENGTH_MEDIUM);
             auto var_data = get_var_data(solver, var);
             assert(var_data->constraint);
         }
