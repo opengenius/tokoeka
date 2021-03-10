@@ -29,12 +29,16 @@ struct hash_desc_t {
     uint32_t element_count;
 };
 
+uint32_t g_find_max = 0;
+
 static uint32_t hash_find_index(const hash_desc_t* desc, const void* key) {
     int key_hash = desc->ht_api->hash(key);
     int index = key_hash % desc->element_count;
     for (uint32_t i = 0; i < desc->element_count; ++i) {
         if (!desc->ht_api->key_valid(desc->data, index) || 
             desc->ht_api->key_equal(desc->data, index, key)) {
+
+            g_find_max = g_find_max < i ? i : g_find_max;
 
             return index;
         }
@@ -45,7 +49,10 @@ static uint32_t hash_find_index(const hash_desc_t* desc, const void* key) {
     return ~0u;
 }
 
+uint32_t g_erase_max = 0;
+
 static void hash_erase(hash_desc_t* desc, uint32_t index) {
+    uint32_t counter = 0;
     for (uint32_t i = (index + 1) % desc->element_count; i != index; i = (i + 1) % desc->element_count) {
         if (!desc->ht_api->key_valid(desc->data, i)) break;
 
@@ -57,8 +64,12 @@ static void hash_erase(hash_desc_t* desc, uint32_t index) {
             desc->ht_api->move(desc->data, index, i);
             index = i;
         }
+
+        counter++;
     }
 
     // clear index
     desc->ht_api->reset(desc->data, index);
+
+    g_erase_max = g_erase_max < counter ? counter : g_erase_max;
 }
