@@ -22,35 +22,6 @@ static uint32_t hash_uint32_t(const pos_t& pos) {
     return pos.column % 5;
 }
 
-static uint32_t element_data_hash(const void* key) {
-    auto key_pos = (const pos_t*)key;
-
-    return hash_uint32_t(*key_pos);
-}
-
-static uint32_t element_data_hash_index(void* ht_data, uint32_t index) {
-    auto element_array = (const element_data_t*)ht_data;
-
-    return hash_uint32_t(element_array[index].pos);
-}
-
-static bool element_data_key_equal(void* ht_data, uint32_t index, const void* key) {
-    auto element_array = (const element_data_t*)ht_data;
-    auto key_pos = (const pos_t*)key;
-
-    auto& pos_at_index = element_array[index].pos;
-
-    return pos_at_index.row == key_pos->row && pos_at_index.column == key_pos->column;
-}
-
-static bool element_data_key_valid(void* ht_data, uint32_t index) { 
-    auto element_array = (const element_data_t*)ht_data;
-
-    auto& pos_at_index = element_array[index].pos;
-
-    return pos_at_index.row || pos_at_index.column;
-}
-
 static void element_data_move(void* ht_data, uint32_t dst_index, uint32_t src_index) {
     auto element_array = (element_data_t*)ht_data;
 
@@ -65,27 +36,30 @@ static void element_data_reset(void* ht_data, uint32_t index) {
     pos_at_index.column = 0u;
 }
 
-const static hash_array_protocol_t s_element_data_impl {
-    element_data_hash,
-    element_data_hash_index,
-    element_data_key_equal,
-    element_data_key_valid,
+const static hash_array_protocol_t s_element_data_impl = {
     element_data_move,
     element_data_reset
 };
 
+static uint32_t find_pos(const hash_desc_t& ht_desc, const pos_t& pos) {
+    //assert(false && "chech for pos");
+    return hash_find_index(&ht_desc, hash_uint32_t(pos));
+}
+
 TEST_CASE("insert-erase", "[hash_table]") {
+    uint32_t hashes[20] = {};
     element_data_t elems[20] = {};
     
     hash_desc_t ht_desc = {};
     ht_desc.ht_api = &s_element_data_impl;
+    ht_desc.hashes = hashes;
     ht_desc.data = elems;
     ht_desc.element_count = 20;
 
     // insert 1.0 at (2, 3)
     {
         pos_t p = {2, 3};
-        auto index = hash_find_index(&ht_desc, &p);
+        auto index = find_pos(ht_desc, p);
         REQUIRE(index);
         REQUIRE(elems[index].value == 0.0);
 
@@ -96,7 +70,7 @@ TEST_CASE("insert-erase", "[hash_table]") {
     // insert 2.0 at (3, 2)
     {
         pos_t p = {3, 2};
-        auto index = hash_find_index(&ht_desc, &p);
+        auto index = find_pos(ht_desc, p);
         REQUIRE(index);
         REQUIRE(elems[index].value == 0.0);
 
@@ -108,7 +82,7 @@ TEST_CASE("insert-erase", "[hash_table]") {
     // insert 3.0 at (2, 2)
     {
         pos_t p = {2, 2};
-        auto index = hash_find_index(&ht_desc, &p);
+        auto index = find_pos(ht_desc, p);
         REQUIRE(index);
         REQUIRE(elems[index].value == 0.0);
 
@@ -119,7 +93,7 @@ TEST_CASE("insert-erase", "[hash_table]") {
     // look for (2, 2)
     {
         pos_t p = {2, 2};
-        auto index = hash_find_index(&ht_desc, &p);
+        auto index = find_pos(ht_desc, p);
         REQUIRE(index);
         REQUIRE(elems[index].value == 3.0);
     }
@@ -127,7 +101,7 @@ TEST_CASE("insert-erase", "[hash_table]") {
     // erase for (2, 3)
     {
         pos_t p = {2, 3};
-        auto index = hash_find_index(&ht_desc, &p);
+        auto index = find_pos(ht_desc, p);
         REQUIRE(index);
         REQUIRE(elems[index].value == 1.0);
 

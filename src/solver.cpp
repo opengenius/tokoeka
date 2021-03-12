@@ -70,6 +70,7 @@ struct sparse_array_t {
 
 struct terms_table_t {
     sparse_array_t<term_data_t> terms;
+    uint32_t* hashes;
     uint32_t* indices;
     uint32_t indices_size;
     uint32_t count;
@@ -227,35 +228,6 @@ static uint32_t hash_uint32_t(const term_coord_t& pos) {
     return distribute(combined);
 }
 
-static uint32_t element_data_hash(const void* key) {
-    auto key_pos = (const term_coord_t*)key;
-
-    return hash_uint32_t(*key_pos);
-}
-
-static uint32_t element_data_hash_index(void* ht_data, uint32_t index) {
-    auto element_array = (terms_table_t*)ht_data;
-
-    index = element_array->indices[index];
-    return hash_uint32_t(array_get(element_array->terms, index).pos);
-}
-
-static bool element_data_key_equal(void* ht_data, uint32_t index, const void* key) {
-    auto element_array = (terms_table_t*)ht_data;
-    auto key_pos = (const term_coord_t*)key;
-
-    index = element_array->indices[index];
-
-    auto& pos_at_index = array_get(element_array->terms, index).pos;
-    return pos_at_index.row == key_pos->row && pos_at_index.column == key_pos->column;
-}
-
-static bool element_data_key_valid(void* ht_data, uint32_t index) { 
-    auto element_array = (terms_table_t*)ht_data;
-
-    return element_array->indices[index];
-}
-
 static void element_data_move(void* ht_data, uint32_t dst_index, uint32_t src_index) {
     auto element_array = (terms_table_t*)ht_data;
 
@@ -268,11 +240,7 @@ static void element_data_reset(void* ht_data, uint32_t index) {
     element_array->indices[index] = 0u;
 }
 
-static const hash_array_protocol_t s_term_ht_impl {
-    element_data_hash,
-    element_data_hash_index,
-    element_data_key_equal,
-    element_data_key_valid,
+static const hash_array_protocol_t s_term_ht_impl = {
     element_data_move,
     element_data_reset
 };
@@ -286,12 +254,15 @@ static void init_table(allocator_t* alloc, terms_table_t* terms, size_t page_siz
     auto size = (uint32_t)array_size(&terms->terms.array);
 
     auto buffer_byte_size = sizeof(uint32_t) * size;
+    terms->hashes = (uint32_t*)allocate(alloc, buffer_byte_size);
     terms->indices = (uint32_t*)allocate(alloc, buffer_byte_size);
     terms->indices_size = size;
+    memset(terms->hashes, 0, buffer_byte_size);
     memset(terms->indices, 0, buffer_byte_size);
 }
 
 static void free_table(allocator_t* alloc, terms_table_t* terms) {
+    free(alloc, terms->hashes);
     free(alloc, terms->indices);
     free_array(alloc, terms->terms);
 }
@@ -299,10 +270,12 @@ static void free_table(allocator_t* alloc, terms_table_t* terms) {
 static uint32_t get_term_index_no_assert(terms_table_t* terms, const term_coord_t& coord) {
     hash_desc_t ht_desc = {};
     ht_desc.ht_api = &s_term_ht_impl;
+    ht_desc.hashes = terms->hashes;
     ht_desc.data = terms;
     ht_desc.element_count = terms->indices_size;
 
-    return hash_find_index(&ht_desc, &coord);
+    assert(false && "check coord");
+    return hash_find_index(&ht_desc, hash_uint32_t(coord)); 
 }
 
 static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord, uint32_t* out_index = nullptr) {
@@ -319,12 +292,15 @@ static void table_grow_rehash(allocator_t* alloc, terms_table_t* terms) {
     auto new_size = array_size(&terms->terms.array) * 2;
     array_grow(alloc, &terms->terms.array, new_size);
 
+    uint32_t* hashes = terms->hashes;
     uint32_t* indices = terms->indices;
     uint32_t indices_size = terms->indices_size;
 
     auto buffer_byte_size = sizeof(uint32_t) * new_size;
+    terms->hashes = (uint32_t*)allocate(alloc, buffer_byte_size);
     terms->indices = (uint32_t*)allocate(alloc, buffer_byte_size);
-    terms->indices_size = new_size;
+    terms->indices_size = (uint32_t)new_size;
+    memset(terms->hashes, 0, buffer_byte_size);
     memset(terms->indices, 0, buffer_byte_size);
 
     for (size_t i = 0u; i < indices_size; ++i) {
@@ -332,9 +308,11 @@ static void table_grow_rehash(allocator_t* alloc, terms_table_t* terms) {
         if (!term_index) continue;
 
         auto new_index = get_term_index_no_assert(terms, array_get(terms->terms, term_index).pos);
+        terms->hashes[new_index] = hashes[i];
         terms->indices[new_index] = term_index;
     }
 
+    free(alloc, hashes);
     free(alloc, indices);
 }
 
@@ -351,12 +329,6 @@ static term_result_t get_term_result(terms_table_t* terms, const term_coord_t& c
 
 static term_result_t find_term(terms_table_t* terms, const term_coord_t& coord) {
     term_result_t res = {};
-
-    hash_desc_t ht_desc = {};
-    ht_desc.ht_api = &s_term_ht_impl;
-    ht_desc.data = terms;
-    ht_desc.element_count = terms->indices_size;
-
     res.index = get_term_index_no_assert(terms, coord);
     if (res.index != ~0u) {
         auto index = terms->indices[res.index];

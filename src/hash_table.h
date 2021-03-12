@@ -3,15 +3,6 @@
 #include "stdint.h"
 
 struct hash_array_protocol_t {
-    uint32_t (*hash)(const void* key);
-    uint32_t (*hash_index)(void* ht_data, uint32_t index);
-    bool (*key_equal)(void* ht_data, uint32_t index, const void* key);
-
-    /**
-     * Check if if key is set
-     */
-    bool (*key_valid)(void* ht_data, uint32_t index);
-
     /**
      * Copy element from src_index to dst_index
      */
@@ -25,18 +16,22 @@ struct hash_array_protocol_t {
 struct hash_desc_t {
     const hash_array_protocol_t* ht_api;
 
-    void*    data;
-    uint32_t element_count;
+    uint32_t* hashes;
+    void*     data;
+    uint32_t  element_count;
 };
 
 uint32_t g_find_max = 0;
 
-static uint32_t hash_find_index(const hash_desc_t* desc, const void* key) {
-    int key_hash = desc->ht_api->hash(key);
-    int index = key_hash % desc->element_count;
+static uint32_t hash_find_index(const hash_desc_t* desc, uint32_t key_hash) {
+    assert(desc->hashes);
+    assert(desc->data);
+    assert(key_hash);
+
+    uint32_t index = key_hash % desc->element_count;
     for (uint32_t i = 0; i < desc->element_count; ++i) {
-        if (!desc->ht_api->key_valid(desc->data, index) || 
-            desc->ht_api->key_equal(desc->data, index, key)) {
+        if (!desc->hashes[index] || 
+            desc->hashes[index] == key_hash) {
 
             g_find_max = g_find_max < i ? i : g_find_max;
 
@@ -52,11 +47,14 @@ static uint32_t hash_find_index(const hash_desc_t* desc, const void* key) {
 uint32_t g_erase_max = 0;
 
 static void hash_erase(hash_desc_t* desc, uint32_t index) {
+    assert(desc->hashes);
+    assert(desc->data);
+
     uint32_t counter = 0;
     for (uint32_t i = (index + 1) % desc->element_count; i != index; i = (i + 1) % desc->element_count) {
-        if (!desc->ht_api->key_valid(desc->data, i)) break;
+        if (!desc->hashes[i]) break;
 
-        auto i_index = desc->ht_api->hash_index(desc->data, i) % desc->element_count;
+        auto i_index = desc->hashes[i] % desc->element_count;
 
         if ( (i > index && (i_index <= index || i_index > i)) ||
              (i < index && (i_index <= index && i_index > i))) { 
