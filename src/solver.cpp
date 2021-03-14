@@ -39,6 +39,10 @@ struct term_coord_t {
     symbol_t row, column;
 };
 
+static bool operator==(const term_coord_t& p1, const term_coord_t& p2) {
+    return p1.row == p2.row && p1.column == p2.column;
+}
+
 struct term_data_t {
     term_coord_t pos;
     symbol_t     prev_row, next_row;
@@ -146,7 +150,7 @@ static void array_grow(allocator_t* alloc, array_t<T>* arr, size_t new_size) {
 
 template<typename T>
 static void array_init(allocator_t* alloc, sparse_array_t<T>& arr, size_t page_size) {
-    array_grow(alloc, &arr.array, page_size / sizeof(sparse_array_t<T>::entry_t));
+    array_grow(alloc, &arr.array, page_size / sizeof(typename sparse_array_t<T>::entry_t));
     auto& free_list_head_entry = array_get(arr.array, FREELIST_INDEX);
     free_list_head_entry.next = 0u;
     arr.first_unused_index = 1u;
@@ -274,8 +278,17 @@ static uint32_t get_term_index_no_assert(terms_table_t* terms, const term_coord_
     ht_desc.data = terms;
     ht_desc.element_count = terms->indices_size;
 
-    assert(false && "check coord");
-    return hash_find_index(&ht_desc, hash_uint32_t(coord)); 
+    auto coord_h = hash_uint32_t(coord);
+    auto iter = hash_find_index(&ht_desc, coord_h);
+    for (; iter.hash == coord_h; 
+            iter = hash_find_next(&ht_desc, &iter)) {
+        auto term_index = terms->indices[iter.index];
+        if (coord == array_get(terms->terms, term_index).pos) {
+            return iter.index;
+        }
+    }
+
+    return iter.index;
 }
 
 static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord, uint32_t* out_index = nullptr) {
@@ -508,6 +521,7 @@ static void delete_term(terms_table_t* terms, const term_result_t* term_it,
 
     hash_desc_t ht_desc = {};
     ht_desc.ht_api = &s_term_ht_impl;
+    ht_desc.hashes = terms->hashes;
     ht_desc.data = terms;
     ht_desc.element_count = terms->indices_size;
     hash_erase(&ht_desc, term_it->index);
@@ -554,6 +568,7 @@ static void add_term(terms_table_t* terms, symbol_t row, symbol_t sym, num_t val
 
         auto new_term_index = array_add_no_grow(terms->terms, new_term);
         assert(new_term_index);
+        terms->hashes[var_term_it.index] = hash_uint32_t(key);
         terms->indices[var_term_it.index] = new_term_index;
         var_term_it.term = &array_get(terms->terms, new_term_index);
     }

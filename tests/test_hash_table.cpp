@@ -19,7 +19,7 @@ struct element_data_t {
 };
 
 static uint32_t hash_uint32_t(const pos_t& pos) {
-    return pos.column % 5;
+    return (pos.column % 5) + 1;
 }
 
 static void element_data_move(void* ht_data, uint32_t dst_index, uint32_t src_index) {
@@ -42,8 +42,17 @@ const static hash_array_protocol_t s_element_data_impl = {
 };
 
 static uint32_t find_pos(const hash_desc_t& ht_desc, const pos_t& pos) {
-    //assert(false && "chech for pos");
-    return hash_find_index(&ht_desc, hash_uint32_t(pos));
+    element_data_t* elems = (element_data_t*)ht_desc.data;
+
+    auto pos_h = hash_uint32_t(pos);
+    auto iter = hash_find_index(&ht_desc, pos_h);
+    for (; iter.hash == pos_h; 
+            iter = hash_find_next(&ht_desc, &iter)) {
+        if (pos == elems[iter.index].pos)
+            return iter.index;
+    }
+    ht_desc.hashes[iter.index] = pos_h;
+    return iter.index;
 }
 
 TEST_CASE("insert-erase", "[hash_table]") {
