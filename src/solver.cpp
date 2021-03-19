@@ -258,16 +258,15 @@ static void init_table(allocator_t* alloc, terms_table_t* terms, size_t page_siz
     auto size = (uint32_t)array_size(&terms->terms.array);
 
     auto buffer_byte_size = sizeof(uint32_t) * size;
-    terms->hashes = (uint32_t*)allocate(alloc, buffer_byte_size);
-    terms->indices = (uint32_t*)allocate(alloc, buffer_byte_size);
+    terms->hashes = (uint32_t*)allocate(alloc, buffer_byte_size * 2);
+    terms->indices = terms->hashes + size;
     terms->indices_size = size;
     memset(terms->hashes, 0, buffer_byte_size);
     memset(terms->indices, 0, buffer_byte_size);
 }
 
 static void free_table(allocator_t* alloc, terms_table_t* terms) {
-    free(alloc, terms->hashes);
-    free(alloc, terms->indices);
+    free(alloc, terms->hashes); // hashes + indices chunk
     free_array(alloc, terms->terms);
 }
 
@@ -310,8 +309,8 @@ static void table_grow_rehash(allocator_t* alloc, terms_table_t* terms) {
     uint32_t indices_size = terms->indices_size;
 
     auto buffer_byte_size = sizeof(uint32_t) * new_size;
-    terms->hashes = (uint32_t*)allocate(alloc, buffer_byte_size);
-    terms->indices = (uint32_t*)allocate(alloc, buffer_byte_size);
+    terms->hashes = (uint32_t*)allocate(alloc, buffer_byte_size * 2);
+    terms->indices = terms->hashes + new_size;
     terms->indices_size = (uint32_t)new_size;
     memset(terms->hashes, 0, buffer_byte_size);
     memset(terms->indices, 0, buffer_byte_size);
@@ -325,8 +324,7 @@ static void table_grow_rehash(allocator_t* alloc, terms_table_t* terms) {
         terms->indices[new_index] = term_index;
     }
 
-    free(alloc, hashes);
-    free(alloc, indices);
+    free(alloc, hashes); // hashes + indices chunk
 }
 
 typedef struct {
