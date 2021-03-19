@@ -301,12 +301,11 @@ static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord, ui
 }
 
 static void table_grow_rehash(allocator_t* alloc, terms_table_t* terms) {
-    auto new_size = array_size(&terms->terms.array) * 2;
-    array_grow(alloc, &terms->terms.array, new_size);
-
     uint32_t* hashes = terms->hashes;
     uint32_t* indices = terms->indices;
     uint32_t indices_size = terms->indices_size;
+
+    auto new_size = indices_size * 2;
 
     auto buffer_byte_size = sizeof(uint32_t) * new_size;
     terms->hashes = (uint32_t*)allocate(alloc, buffer_byte_size * 2);
@@ -546,7 +545,7 @@ static void multiply_row(terms_table_t* terms, symbol_t row, num_t multiplier) {
     }
 }
 
-static void add_term(terms_table_t* terms, symbol_t row, symbol_t sym, num_t value) {
+static void add_term(allocator_t* alloc, terms_table_t* terms, symbol_t row, symbol_t sym, num_t value) {
     const term_coord_t key = {row, sym};
     auto var_term_it = find_term(terms, key);
     assert(var_term_it.index != ~0u && "expect ht to grow?");
@@ -564,7 +563,7 @@ static void add_term(terms_table_t* terms, symbol_t row, symbol_t sym, num_t val
             link_term(terms, key, new_term);
         }
 
-        auto new_term_index = array_add_no_grow(terms->terms, new_term);
+        auto new_term_index = array_add(alloc, terms->terms, new_term);
         assert(new_term_index);
         terms->hashes[var_term_it.index] = hash_uint32_t(key);
         terms->indices[var_term_it.index] = new_term_index;
@@ -578,13 +577,13 @@ static void add_term(terms_table_t* terms, symbol_t row, symbol_t sym, num_t val
     }
 }
 
-static void add_row(terms_table_t* terms, symbol_t row, symbol_t other, num_t multiplier) {
+static void add_row(allocator_t* alloc, terms_table_t* terms, symbol_t row, symbol_t other, num_t multiplier) {
     for (auto term_it = first_row_iterator(terms, other); 
             term_it.term_res.term;
             term_it = next_row_iterator(terms, term_it)) {
         auto term_ptr = term_it.term_res.term;
 
-        add_term(terms, row, term_ptr->pos.column, term_ptr->multiplier * multiplier);
+        add_term(alloc, terms, row, term_ptr->pos.column, term_ptr->multiplier * multiplier);
     }
 }
 
@@ -592,18 +591,18 @@ static bool has_row(terms_table_t* terms, symbol_t row) {
     return find_existing_term(terms, {row, 0u}) != nullptr;
 }
 
-static void merge_row(terms_table_t* terms, symbol_t row, symbol_t var, num_t multiplier) {
+static void merge_row(allocator_t* alloc, terms_table_t* terms, symbol_t row, symbol_t var, num_t multiplier) {
     if (has_row(terms, var))
-        add_row(terms, row, var, multiplier);
+        add_row(alloc, terms, row, var, multiplier);
     else
-        add_term(terms, row, var, multiplier);
+        add_term(alloc, terms, row, var, multiplier);
 }
 
-static void init_row(terms_table_t* terms, symbol_t row, num_t constant) {
+static void init_row(allocator_t* alloc, terms_table_t* terms, symbol_t row, num_t constant) {
     assert(!has_row(terms, row));
 
     // row is defined with constant term
-    add_term(terms, row, 0u, constant);
+    add_term(alloc, terms, row, 0u, constant);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -643,7 +642,7 @@ static symbol_t new_symbol(solver_t *solver, symbol_type_e type) {
     symbol_t id = array_add(&solver->allocator, solver->vars, data);
 
     // init symbol link list
-    add_term(&solver->terms, 0u, id, 0.0f);
+    add_term(&solver->allocator, &solver->terms, 0u, id, 0.0f);
 
     return id;
 }
@@ -678,11 +677,11 @@ static void pivot(solver_t *solver, symbol_t row, symbol_t entry, symbol_t exit)
     assert(entry != exit && !near_zero(term_it.term->multiplier));
     delete_term(&solver->terms, &term_it);
 
-    add_row(&solver->terms, entry, row, -reciprocal);
+    add_row(&solver->allocator, &solver->terms, entry, row, -reciprocal);
     free_row(&solver->terms, row);
     if (row != exit) delete_variable(solver, row);
 
-    if (exit != 0) add_term(&solver->terms, entry, exit, reciprocal);
+    if (exit != 0) add_term(&solver->allocator, &solver->terms, entry, exit, reciprocal);
 
     for (auto sym_iter = first_symbol_iterator(&solver->terms, entry); 
             sym_iter.term_res.term; 
@@ -693,7 +692,7 @@ static void pivot(solver_t *solver, symbol_t row, symbol_t entry, symbol_t exit)
 
         // substitute entry term with solved row
         delete_term(&solver->terms, &sym_iter.term_res, unlink_frags_e::ROW);
-        add_row(&solver->terms, it_row, entry, term_multiplier);
+        add_row(&solver->allocator, &solver->terms, it_row, entry, term_multiplier);
         
         // mark row as infeasible, skip objective as well
         if (!is_external(solver, it_row))
@@ -757,30 +756,30 @@ static result_e optimize(solver_t *solver, symbol_t objective) {
 static symbol_t make_row(solver_t *solver, const constraint_desc_t* desc, constraint_data_t* cons) {
     // use temp var to form the row
     symbol_t row = new_symbol(solver, symbol_type_e::SLACK);
-    init_row(&solver->terms, row, -desc->constant);
+    init_row(&solver->allocator, &solver->terms, row, -desc->constant);
     for (size_t i = 0; i < desc->term_count; ++i) {
-        merge_row(&solver->terms, row, desc->symbols[i], desc->multipliers[i]);
+        merge_row(&solver->allocator, &solver->terms, row, desc->symbols[i], desc->multipliers[i]);
     }
 
     if (desc->relation != relation_e::EQUAL) {
         num_t coeff = desc->relation == relation_e::LESSEQUAL ? 1.0f : -1.0f;
         cons->marker = new_symbol(solver, symbol_type_e::SLACK);
-        add_term(&solver->terms, row, cons->marker, coeff);
+        add_term(&solver->allocator, &solver->terms, row, cons->marker, coeff);
         if (cons->strength < STRENGTH_REQUIRED) {
             cons->other = new_symbol(solver, symbol_type_e::ERROR);
-            add_term(&solver->terms, row, cons->other, -coeff);
-            add_term(&solver->terms, solver->objective, cons->other, cons->strength);
+            add_term(&solver->allocator, &solver->terms, row, cons->other, -coeff);
+            add_term(&solver->allocator, &solver->terms, solver->objective, cons->other, cons->strength);
         }
     } else if (cons->strength >= STRENGTH_REQUIRED) {
         cons->marker = new_symbol(solver, symbol_type_e::DUMMY);
-        add_term(&solver->terms, row, cons->marker, 1.0f);
+        add_term(&solver->allocator, &solver->terms, row, cons->marker, 1.0f);
     } else {
         cons->marker = new_symbol(solver, symbol_type_e::ERROR);
         cons->other = new_symbol(solver, symbol_type_e::ERROR);
-        add_term(&solver->terms, row, cons->marker, -1.0f);
-        add_term(&solver->terms, row, cons->other,   1.0f);
-        add_term(&solver->terms, solver->objective, cons->marker, cons->strength);
-        add_term(&solver->terms, solver->objective, cons->other,  cons->strength);
+        add_term(&solver->allocator, &solver->terms, row, cons->marker, -1.0f);
+        add_term(&solver->allocator, &solver->terms, row, cons->other,   1.0f);
+        add_term(&solver->allocator, &solver->terms, solver->objective, cons->marker, cons->strength);
+        add_term(&solver->allocator, &solver->terms, solver->objective, cons->other,  cons->strength);
     }
     if (value(solver, row) < 0.0f) multiply_row(&solver->terms, row, -1.0f);
     return row;
@@ -788,9 +787,9 @@ static symbol_t make_row(solver_t *solver, const constraint_desc_t* desc, constr
 
 static void remove_errors(solver_t *solver, constraint_data_t *cons) {
     if (is_error(solver, cons->marker))
-        merge_row(&solver->terms, solver->objective, cons->marker, -cons->strength);
+        merge_row(&solver->allocator, &solver->terms, solver->objective, cons->marker, -cons->strength);
     if (cons->other && is_error(solver, cons->other))
-        merge_row(&solver->terms, solver->objective, cons->other, -cons->strength);
+        merge_row(&solver->allocator, &solver->terms, solver->objective, cons->other, -cons->strength);
     if (is_constant_row(&solver->terms, solver->objective)) {
         auto obj_constant_term = get_term(&solver->terms, {solver->objective, 0u});
         obj_constant_term->multiplier = 0.0f;
@@ -846,7 +845,7 @@ static void remove_vars(solver_t *solver, constraint_handle_t cons) {
 
 static result_e add_with_artificial(solver_t *solver, symbol_t row) {
     symbol_t a = new_symbol(solver, symbol_type_e::SLACK); /* artificial variable will be removed */
-    add_row(&solver->terms, a, row, 1.0f);
+    add_row(&solver->allocator, &solver->terms, a, row, 1.0f);
 
     optimize(solver, row);
     result_e ret = near_zero(value(solver, row)) ? result_e::OK : result_e::UNBOUND;
@@ -1048,7 +1047,7 @@ solver_t *create_solver(const solver_desc_t* desc) {
     
     // init objective function
     solver->objective = new_symbol(solver, symbol_type_e::EXTERNAL);
-    init_row(&solver->terms, solver->objective, 0.0f);
+    init_row(&solver->allocator, &solver->terms, solver->objective, 0.0f);
 
     return solver;
 }
