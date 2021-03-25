@@ -36,7 +36,7 @@ static void element_data_reset(void* ht_data, uint32_t index) {
     pos_at_index.column = 0u;
 }
 
-const static hash_array_protocol_t s_element_data_impl = {
+const static hash_values_protocol_t s_element_data_impl = {
     element_data_move,
     element_data_reset
 };
@@ -60,7 +60,6 @@ TEST_CASE("insert-erase", "[hash_table]") {
     element_data_t elems[20] = {};
     
     hash_desc_t ht_desc = {};
-    ht_desc.ht_api = &s_element_data_impl;
     ht_desc.hashes = hashes;
     ht_desc.data = elems;
     ht_desc.element_count = 20;
@@ -114,7 +113,7 @@ TEST_CASE("insert-erase", "[hash_table]") {
         REQUIRE(index);
         REQUIRE(elems[index].value == 1.0);
 
-        hash_erase(&ht_desc, index);
+        hash_erase(&s_element_data_impl, &ht_desc, index);
         // expect key to be removed
         REQUIRE(elems[index].pos != p);
     }

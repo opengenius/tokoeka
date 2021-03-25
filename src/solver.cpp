@@ -6,6 +6,9 @@
 #include <cstdlib>
 #include <cstring>
 #include "hash_table.h"
+#include "index_ht.h"
+
+int32_t g_find_max;
 
 namespace tokoeka {
 
@@ -74,10 +77,7 @@ struct sparse_array_t {
 
 struct terms_table_t {
     sparse_array_t<term_data_t> terms;
-    uint32_t* hashes;
-    uint32_t* indices;
-    uint32_t indices_size;
-    uint32_t count;
+    index_ht::index_ht_t indices;
 };
 
 } // internal namespace
@@ -207,6 +207,7 @@ static uint32_t array_add(allocator_t* alloc, sparse_array_t<T>& arr, const T& v
 
 template<typename T>
 static void array_remove(sparse_array_t<T>& arr, uint32_t index) {
+    assert(index);
     auto& free_list_head_entry = array_get(arr.array, FREELIST_INDEX);
     auto& at_index_entry = array_get(arr.array, index); 
     at_index_entry.next = free_list_head_entry.next;
@@ -232,23 +233,6 @@ static uint32_t hash_uint32_t(const term_coord_t& pos) {
     return distribute(combined);
 }
 
-static void element_data_move(void* ht_data, uint32_t dst_index, uint32_t src_index) {
-    auto element_array = (terms_table_t*)ht_data;
-
-    element_array->indices[dst_index] = element_array->indices[src_index];
-}
-
-static void element_data_reset(void* ht_data, uint32_t index) {
-    auto element_array = (terms_table_t*)ht_data;
-
-    element_array->indices[index] = 0u;
-}
-
-static const hash_array_protocol_t s_term_ht_impl = {
-    element_data_move,
-    element_data_reset
-};
-
 ///////////////////////////////////////////////////////////////////////////////
 // Linear equation tableau (sparse matrix in DOK with row, column linked lists)
 ///////////////////////////////////////////////////////////////////////////////
@@ -258,31 +242,27 @@ static void init_table(allocator_t* alloc, terms_table_t* terms, size_t page_siz
     auto size = (uint32_t)array_size(&terms->terms.array);
 
     auto buffer_byte_size = sizeof(uint32_t) * size;
-    terms->hashes = (uint32_t*)allocate(alloc, buffer_byte_size * 2);
-    terms->indices = terms->hashes + size;
-    terms->indices_size = size;
-    memset(terms->hashes, 0, buffer_byte_size);
-    memset(terms->indices, 0, buffer_byte_size);
+    uint32_t* indices_buf = (uint32_t*)allocate(alloc, buffer_byte_size * 2);
+    index_ht::init(terms->indices, indices_buf, indices_buf + size, size);
 }
 
 static void free_table(allocator_t* alloc, terms_table_t* terms) {
-    free(alloc, terms->hashes); // hashes + indices chunk
+    free(alloc, terms->indices.hashes); // hashes + indices chunk
     free_array(alloc, terms->terms);
 }
 
 static uint32_t get_term_index_no_assert(terms_table_t* terms, const term_coord_t& coord) {
     hash_desc_t ht_desc = {};
-    ht_desc.ht_api = &s_term_ht_impl;
-    ht_desc.hashes = terms->hashes;
-    ht_desc.data = terms;
-    ht_desc.element_count = terms->indices_size;
+    ht_desc.hashes = terms->indices.hashes;
+    ht_desc.element_count = terms->indices.size;
 
     auto coord_h = hash_uint32_t(coord);
     auto iter = hash_find_index(&ht_desc, coord_h);
     for (; iter.hash == coord_h; 
             iter = hash_find_next(&ht_desc, &iter)) {
-        auto term_index = terms->indices[iter.index];
+        auto term_index = terms->indices.indices[iter.index];
         if (coord == array_get(terms->terms, term_index).pos) {
+            g_find_max = g_find_max < iter.iter ? iter.iter : g_find_max;
             return iter.index;
         }
     }
@@ -292,7 +272,7 @@ static uint32_t get_term_index_no_assert(terms_table_t* terms, const term_coord_
 
 static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord, uint32_t* out_index = nullptr) {
     auto index = get_term_index_no_assert(terms, coord);
-    auto term_pos = terms->indices[index];
+    auto term_pos = terms->indices.indices[index];
     term_data_t* res = &array_get(terms->terms, term_pos);
     assert(res->pos.row == coord.row && res->pos.column == coord.column);
 
@@ -300,30 +280,18 @@ static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord, ui
     return res;
 }
 
-static void table_grow_rehash(allocator_t* alloc, terms_table_t* terms) {
-    uint32_t* hashes = terms->hashes;
-    uint32_t* indices = terms->indices;
-    uint32_t indices_size = terms->indices_size;
-
-    auto new_size = indices_size * 2;
+static void table_grow_rehash(allocator_t* alloc, index_ht::index_ht_t* indices) {
+    auto new_size = indices->size * 2;
 
     auto buffer_byte_size = sizeof(uint32_t) * new_size;
-    terms->hashes = (uint32_t*)allocate(alloc, buffer_byte_size * 2);
-    terms->indices = terms->hashes + new_size;
-    terms->indices_size = (uint32_t)new_size;
-    memset(terms->hashes, 0, buffer_byte_size);
-    memset(terms->indices, 0, buffer_byte_size);
+    uint32_t* indices_buf = (uint32_t*)allocate(alloc, buffer_byte_size * 2);
+    index_ht::index_ht_t new_indices = {};
+    index_ht::init(new_indices, indices_buf, indices_buf + new_size, new_size);
 
-    for (size_t i = 0u; i < indices_size; ++i) {
-        uint32_t term_index = indices[i];
-        if (!term_index) continue;
+    index_ht::rehash(new_indices, *indices);
+    free(alloc, indices->hashes); // hashes + indices chunk
 
-        auto new_index = get_term_index_no_assert(terms, array_get(terms->terms, term_index).pos);
-        terms->hashes[new_index] = hashes[i];
-        terms->indices[new_index] = term_index;
-    }
-
-    free(alloc, hashes); // hashes + indices chunk
+    *indices = new_indices;
 }
 
 typedef struct {
@@ -341,7 +309,7 @@ static term_result_t find_term(terms_table_t* terms, const term_coord_t& coord) 
     term_result_t res = {};
     res.index = get_term_index_no_assert(terms, coord);
     if (res.index != ~0u) {
-        auto index = terms->indices[res.index];
+        auto index = terms->indices.indices[res.index];
         if (index) {
             res.term = &array_get(terms->terms, index);
         }
@@ -510,19 +478,7 @@ static void unlink_term(terms_table_t* terms, const term_data_t* t, unlink_frags
 static void delete_term(terms_table_t* terms, const term_result_t* term_it, 
                         unlink_frags_e unlink_flag = unlink_frags_e::BOTH) {
     unlink_term(terms, term_it->term, unlink_flag);
-
-    assert(terms->count);
-    --terms->count;
-
-    auto term_pos = terms->indices[term_it->index];
-
-    hash_desc_t ht_desc = {};
-    ht_desc.ht_api = &s_term_ht_impl;
-    ht_desc.hashes = terms->hashes;
-    ht_desc.data = terms;
-    ht_desc.element_count = terms->indices_size;
-    hash_erase(&ht_desc, term_it->index);
-
+    auto term_pos = index_ht::erase(terms->indices, term_it->index);
     array_remove(terms->terms, term_pos);
 }
 
@@ -552,9 +508,6 @@ static void add_term(allocator_t* alloc, terms_table_t* terms, symbol_t row, sym
 
     if (!var_term_it.term) {
         // no var, add
-        // todo: handle adding to full table
-        assert(terms->count < terms->indices_size);
-        ++terms->count;
 
         term_data_t new_term = {};
         new_term.pos = key;
@@ -563,10 +516,15 @@ static void add_term(allocator_t* alloc, terms_table_t* terms, symbol_t row, sym
             link_term(terms, key, new_term);
         }
 
+
         auto new_term_index = array_add(alloc, terms->terms, new_term);
         assert(new_term_index);
-        terms->hashes[var_term_it.index] = hash_uint32_t(key);
-        terms->indices[var_term_it.index] = new_term_index;
+        
+        if (terms->indices.size < terms->indices.count * 2) {
+            table_grow_rehash(alloc, &terms->indices);
+            var_term_it = find_term(terms, key);
+        }
+        index_ht::insert(terms->indices, var_term_it.index, hash_uint32_t(key), new_term_index);
         var_term_it.term = &array_get(terms->terms, new_term_index);
     }
 
@@ -666,11 +624,6 @@ static void mark_infeasible(solver_t *solver, symbol_t row) {
 }
 
 static void pivot(solver_t *solver, symbol_t row, symbol_t entry, symbol_t exit) {
-    if (solver->terms.indices_size < solver->terms.count * 2) {
-        // todo: find right place for this
-        table_grow_rehash(&solver->allocator, &solver->terms);
-    }
-
     term_coord_t key = {row, entry};
     auto term_it = get_term_result(&solver->terms, key);
     num_t reciprocal = 1.0f / term_it.term->multiplier;

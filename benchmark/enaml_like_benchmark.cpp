@@ -251,10 +251,8 @@ int main()
     destroy_solver(S);
 
     extern uint32_t g_find_max;
-    extern uint32_t g_erase_max;
     printf("\n");
     printf("g_find_max: %d\n", g_find_max);
-    printf("g_erase_max: %d\n", g_erase_max);
 
     return 0;
 }

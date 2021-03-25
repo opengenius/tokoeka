@@ -1,8 +1,9 @@
 #pragma once
 
 #include "stdint.h"
+#include <cassert>
 
-struct hash_array_protocol_t {
+struct hash_values_protocol_t {
     /**
      * Copy element from src_index to dst_index
      */
@@ -14,15 +15,10 @@ struct hash_array_protocol_t {
 };
 
 struct hash_desc_t {
-    const hash_array_protocol_t* ht_api;
-
     uint32_t* hashes;
     void*     data;
     uint32_t  element_count;
 };
-
-uint32_t g_find_max = 0;
-
 struct hash_find_iter_t {
     uint32_t index;
     uint32_t hash;
@@ -31,7 +27,6 @@ struct hash_find_iter_t {
 
 static hash_find_iter_t hash_find_index(const hash_desc_t* desc, uint32_t key_hash) {
     assert(desc->hashes);
-    assert(desc->data);
     assert(key_hash);
 
     hash_find_iter_t res = {};
@@ -40,9 +35,6 @@ static hash_find_iter_t hash_find_index(const hash_desc_t* desc, uint32_t key_ha
     for (res.iter = 0; res.iter < desc->element_count; ++res.iter) {
         res.hash = desc->hashes[res.index];
         if (!res.hash || res.hash == key_hash) {
-
-            g_find_max = g_find_max < res.iter ? res.iter : g_find_max;
-
             return res;
         }
 
@@ -55,7 +47,6 @@ static hash_find_iter_t hash_find_index(const hash_desc_t* desc, uint32_t key_ha
 
 static hash_find_iter_t hash_find_next(const hash_desc_t* desc, const hash_find_iter_t* prev_iter) {
     assert(desc->hashes);
-    assert(desc->data);
     assert(prev_iter->hash);
 
     hash_find_iter_t res = {};
@@ -64,9 +55,6 @@ static hash_find_iter_t hash_find_next(const hash_desc_t* desc, const hash_find_
     for (res.iter = prev_iter->iter + 1; res.iter < desc->element_count; ++res.iter) {
         res.hash = desc->hashes[res.index];
         if (!res.hash || res.hash == prev_iter->hash) {
-
-            g_find_max = g_find_max < res.iter ? res.iter : g_find_max;
-
             return res;
         }
 
@@ -77,9 +65,8 @@ static hash_find_iter_t hash_find_next(const hash_desc_t* desc, const hash_find_
     return res;
 }
 
-uint32_t g_erase_max = 0;
-
-static void hash_erase(hash_desc_t* desc, uint32_t index) {
+static void hash_erase(const hash_values_protocol_t* ht_api, 
+                    hash_desc_t* desc, uint32_t index) {
     assert(desc->hashes);
     assert(desc->data);
 
@@ -93,7 +80,7 @@ static void hash_erase(hash_desc_t* desc, uint32_t index) {
              (i < index && (i_index <= index && i_index > i))) { 
             // swap
             desc->hashes[index] = desc->hashes[i];
-            desc->ht_api->move(desc->data, index, i);
+            ht_api->move(desc->data, index, i);
             index = i;
         }
 
@@ -102,7 +89,5 @@ static void hash_erase(hash_desc_t* desc, uint32_t index) {
 
     // clear index
     desc->hashes[index] = 0u;
-    desc->ht_api->reset(desc->data, index);
-
-    g_erase_max = g_erase_max < counter ? counter : g_erase_max;
+    ht_api->reset(desc->data, index);
 }

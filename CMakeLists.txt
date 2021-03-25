@@ -8,7 +8,9 @@ if (CMAKE_BUILD_TYPE EQUAL "Release")
 endif()
 
 add_library(tokoeka STATIC 
-    src/solver.cpp)
+    src/solver.cpp
+    src/index_ht.cpp
+)
 target_include_directories(tokoeka PUBLIC include)
 
 get_directory_property(HAS_PARENT PARENT_DIRECTORY)
