@@ -46,8 +46,7 @@ static uint32_t find_pos(const hash_desc_t& ht_desc, const pos_t& pos) {
 
     auto pos_h = hash_uint32_t(pos);
     auto iter = hash_find_index(&ht_desc, pos_h);
-    for (; iter.hash == pos_h; 
-            iter = hash_find_next(&ht_desc, &iter)) {
+    for (;iter.hash == pos_h; iter = hash_find_next(&ht_desc, &iter)) {
         if (pos == elems[iter.index].pos)
             return iter.index;
     }
@@ -106,7 +105,7 @@ TEST_CASE("insert-erase", "[hash_table]") {
         REQUIRE(elems[index].value == 3.0);
     }
 
-    // erase for (2, 3)
+    // erase (2, 3)
     {
         pos_t p = {2, 3};
         auto index = find_pos(ht_desc, p);

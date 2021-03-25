@@ -6,13 +6,13 @@
 namespace index_ht {
 
 static void element_data_move(void* ht_data, uint32_t dst_index, uint32_t src_index) {
-    auto element_array = (index_ht_t*)ht_data;
-    element_array->indices[dst_index] = element_array->indices[src_index];
+    auto indices = (uint32_t*)ht_data;
+    indices[dst_index] = indices[src_index];
 }
 
 static void element_data_reset(void* ht_data, uint32_t index) {
-    auto element_array = (index_ht_t*)ht_data;
-    element_array->indices[index] = 0u;
+    auto indices = (uint32_t*)ht_data;
+    indices[index] = 0u;
 }
 
 static const hash_values_protocol_t s_term_ht_impl = {
@@ -38,7 +38,7 @@ uint32_t erase(index_ht_t& self, uint32_t ht_index) {
 
     hash_desc_t ht_desc = {};
     ht_desc.hashes = self.hashes;
-    ht_desc.data = &self;
+    ht_desc.data = self.indices;
     ht_desc.element_count = self.size;
     hash_erase(&s_term_ht_impl, &ht_desc, ht_index);
 

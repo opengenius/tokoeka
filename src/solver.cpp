@@ -230,7 +230,9 @@ static uint32_t distribute(const uint32_t& n) {
 
 static uint32_t hash_uint32_t(const term_coord_t& pos) {
     uint32_t combined = (pos.row << 16) | pos.column;
-    return distribute(combined);
+    uint32_t res = distribute(combined);
+    res += (res == 0u) ? 1u : 0u;
+    return res;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -262,7 +264,7 @@ static uint32_t get_term_index_no_assert(terms_table_t* terms, const term_coord_
             iter = hash_find_next(&ht_desc, &iter)) {
         auto term_index = terms->indices.indices[iter.index];
         if (coord == array_get(terms->terms, term_index).pos) {
-            g_find_max = g_find_max < iter.iter ? iter.iter : g_find_max;
+            g_find_max = g_find_max < iter.counter ? iter.counter : g_find_max;
             return iter.index;
         }
     }

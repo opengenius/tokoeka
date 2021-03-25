@@ -2,14 +2,15 @@
 
 #include "stdint.h"
 #include <cassert>
+#include "hash_types.h"
 
 struct hash_values_protocol_t {
     /**
-     * Copy element from src_index to dst_index
+     * Copy value from src_index to dst_index
      */
     void (*move)(void* ht_data, uint32_t dst_index, uint32_t src_index);
     /**
-     * Clear key fields
+     * Clear value at index
      */
     void (*reset)(void* ht_data, uint32_t index);
 };
@@ -19,20 +20,15 @@ struct hash_desc_t {
     void*     data;
     uint32_t  element_count;
 };
-struct hash_find_iter_t {
-    uint32_t index;
-    uint32_t hash;
-    uint32_t iter;
-};
 
-static hash_find_iter_t hash_find_index(const hash_desc_t* desc, uint32_t key_hash) {
+static hash32_find_iter_t hash_find_index(const hash_desc_t* desc, uint32_t key_hash) {
     assert(desc->hashes);
     assert(key_hash);
 
-    hash_find_iter_t res = {};
+    hash32_find_iter_t res = {};
 
     res.index = key_hash % desc->element_count;
-    for (res.iter = 0; res.iter < desc->element_count; ++res.iter) {
+    for (res.counter = 0; res.counter < desc->element_count; ++res.counter) {
         res.hash = desc->hashes[res.index];
         if (!res.hash || res.hash == key_hash) {
             return res;
@@ -45,14 +41,14 @@ static hash_find_iter_t hash_find_index(const hash_desc_t* desc, uint32_t key_ha
     return res;
 }
 
-static hash_find_iter_t hash_find_next(const hash_desc_t* desc, const hash_find_iter_t* prev_iter) {
+static hash32_find_iter_t hash_find_next(const hash_desc_t* desc, const hash32_find_iter_t* prev_iter) {
     assert(desc->hashes);
     assert(prev_iter->hash);
 
-    hash_find_iter_t res = {};
+    hash32_find_iter_t res = {};
 
     res.index = (prev_iter->index + 1) % desc->element_count;
-    for (res.iter = prev_iter->iter + 1; res.iter < desc->element_count; ++res.iter) {
+    for (res.counter = prev_iter->counter + 1; res.counter < desc->element_count; ++res.counter) {
         res.hash = desc->hashes[res.index];
         if (!res.hash || res.hash == prev_iter->hash) {
             return res;
