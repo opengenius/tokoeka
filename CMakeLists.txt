@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.14)
 project(tokoeka
     VERSION 0.1.0)
 
+set(CMAKE_CXX_STANDARD 17)
+
 if (CMAKE_BUILD_TYPE EQUAL "Release")
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()

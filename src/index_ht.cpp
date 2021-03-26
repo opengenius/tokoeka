@@ -11,8 +11,7 @@ static void element_data_move(void* ht_data, uint32_t dst_index, uint32_t src_in
 }
 
 static void element_data_reset(void* ht_data, uint32_t index) {
-    auto indices = (uint32_t*)ht_data;
-    indices[index] = 0u;
+    // no need to reset
 }
 
 static const hash_values_protocol_t s_term_ht_impl = {
@@ -28,7 +27,6 @@ void init(index_ht_t& self, uint32_t* hashes, uint32_t* indices, uint32_t size) 
 
     auto buffer_byte_size = sizeof(uint32_t) * size;
     memset(self.hashes, 0, buffer_byte_size);
-    memset(self.indices, 0, buffer_byte_size);
 }
 
 uint32_t erase(index_ht_t& self, uint32_t ht_index) {

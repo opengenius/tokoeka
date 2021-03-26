@@ -253,7 +253,12 @@ static void free_table(allocator_t* alloc, terms_table_t* terms) {
     free_array(alloc, terms->terms);
 }
 
-static uint32_t get_term_index_no_assert(terms_table_t* terms, const term_coord_t& coord) {
+typedef struct {
+    uint32_t index;
+    bool found;
+} index_result_t;
+
+static index_result_t get_term_index_no_assert(terms_table_t* terms, const term_coord_t& coord) {
     hash_desc_t ht_desc = {};
     ht_desc.hashes = terms->indices.hashes;
     ht_desc.element_count = terms->indices.size;
@@ -265,15 +270,15 @@ static uint32_t get_term_index_no_assert(terms_table_t* terms, const term_coord_
         auto term_index = terms->indices.indices[iter.index];
         if (coord == array_get(terms->terms, term_index).pos) {
             g_find_max = g_find_max < iter.counter ? iter.counter : g_find_max;
-            return iter.index;
+            return {iter.index, true};
         }
     }
 
-    return iter.index;
+    return {iter.index, false};
 }
 
 static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord, uint32_t* out_index = nullptr) {
-    auto index = get_term_index_no_assert(terms, coord);
+    auto [index,_] = get_term_index_no_assert(terms, coord);
     auto term_pos = terms->indices.indices[index];
     term_data_t* res = &array_get(terms->terms, term_pos);
     assert(res->pos.row == coord.row && res->pos.column == coord.column);
@@ -309,12 +314,11 @@ static term_result_t get_term_result(terms_table_t* terms, const term_coord_t& c
 
 static term_result_t find_term(terms_table_t* terms, const term_coord_t& coord) {
     term_result_t res = {};
-    res.index = get_term_index_no_assert(terms, coord);
-    if (res.index != ~0u) {
+    auto [index, found] = get_term_index_no_assert(terms, coord);
+    res.index = index;
+    if (found) {
         auto index = terms->indices.indices[res.index];
-        if (index) {
-            res.term = &array_get(terms->terms, index);
-        }
+        res.term = &array_get(terms->terms, index);
     }
 
     return res;
