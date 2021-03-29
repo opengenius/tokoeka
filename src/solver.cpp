@@ -228,9 +228,22 @@ static uint32_t distribute(const uint32_t& n) {
   return c * xorshift(p * xorshift(n, 16), 16);
 }
 
+template <class T>
+inline void hash_combine(std::size_t& seed, const T& v)
+{
+    std::hash<T> hasher;
+    seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+}
+
 static uint32_t hash_uint32_t(const term_coord_t& pos) {
-    uint32_t combined = (pos.row << 16) | pos.column;
-    uint32_t res = distribute(combined);
+    // uint32_t combined = (pos.row << 16) | pos.column;
+    // uint32_t res = distribute(combined);
+
+    size_t seed = 0;
+    hash_combine(seed, pos.row);
+    hash_combine(seed, pos.column);
+
+    uint32_t res = (uint32_t)seed;
     res += (res == 0u) ? 1u : 0u;
     return res;
 }
@@ -241,7 +254,7 @@ static uint32_t hash_uint32_t(const term_coord_t& pos) {
 
 static void init_table(allocator_t* alloc, terms_table_t* terms, size_t page_size) {
     array_init(alloc, terms->terms, page_size);
-    auto size = (uint32_t)array_size(&terms->terms.array);
+    auto size = page_size / (sizeof(uint32_t) * 2);//(uint32_t)array_size(&terms->terms.array);
 
     auto buffer_byte_size = sizeof(uint32_t) * size;
     uint32_t* indices_buf = (uint32_t*)allocate(alloc, buffer_byte_size * 2);

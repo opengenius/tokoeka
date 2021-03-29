@@ -1,9 +1,9 @@
 #include "hash_table.h"
 
 static uint32_t distance(const hash_desc_t* desc, uint32_t key_hash, uint32_t pos) {
-    auto desired_pos = key_hash % desc->element_count;
-    auto dist = (desired_pos <= pos) ? pos - desired_pos : pos + (desc->element_count - desired_pos);
-    // auto dist = (pos + desc->element_count - desired_pos) % desc->element_count;
+    auto desired_pos = key_hash & (desc->element_count - 1);
+    //auto dist = (desired_pos <= pos) ? pos - desired_pos : pos + (desc->element_count - desired_pos);
+    auto dist = (pos - desired_pos) & (desc->element_count - 1);
     return dist;
 }
 
@@ -13,7 +13,7 @@ static hash32_find_iter_t hash_rh_find_index(const hash_desc_t* desc, uint32_t k
 
     hash32_find_iter_t res = {};
 
-    res.index = key_hash % desc->element_count;
+    res.index = key_hash & (desc->element_count - 1);
     for (res.counter = 0; res.counter < desc->element_count; ++res.counter) {
         res.hash = desc->hashes[res.index];
         if (!res.hash || res.hash == key_hash) {
@@ -22,7 +22,7 @@ static hash32_find_iter_t hash_rh_find_index(const hash_desc_t* desc, uint32_t k
 
         if (distance(desc, res.hash, res.index) < res.counter) return res;
 
-        res.index = (res.index + 1) % desc->element_count;
+        res.index = (res.index + 1) & (desc->element_count - 1);
     }
 
     res.index = ~0u;
@@ -35,7 +35,7 @@ static hash32_find_iter_t hash_rh_find_next(const hash_desc_t* desc, const hash3
 
     hash32_find_iter_t res = {};
 
-    res.index = (prev_iter->index + 1) % desc->element_count;
+    res.index = (prev_iter->index + 1) & (desc->element_count - 1);
     for (res.counter = prev_iter->counter + 1; res.counter < desc->element_count; ++res.counter) {
         res.hash = desc->hashes[res.index];
         if (!res.hash || res.hash == prev_iter->hash) {
@@ -44,7 +44,7 @@ static hash32_find_iter_t hash_rh_find_next(const hash_desc_t* desc, const hash3
 
         if (distance(desc, res.hash, res.index) < res.counter) return res;
 
-        res.index = (res.index + 1) % desc->element_count;
+        res.index = (res.index + 1) & (desc->element_count - 1);
     }
 
     res.index = ~0u;
@@ -57,7 +57,7 @@ static uint32_t hash_rh_insert_move(const hash_values_protocol_t* ht_api,
     uint32_t empty_index = index;
     while (desc->hashes[empty_index])
     {
-        empty_index = (empty_index + 1) % desc->element_count;
+        empty_index = (empty_index + 1) & (desc->element_count - 1);
     }
 
     // slot is empty
@@ -98,7 +98,7 @@ static uint32_t hash_rh_erase(const hash_values_protocol_t* ht_api,
     assert(desc->data);
 
     uint32_t counter = 0;
-    for (uint32_t i = (index + 1) % desc->element_count; i != index; i = (i + 1) % desc->element_count) {
+    for (uint32_t i = (index + 1) & (desc->element_count - 1); i != index; i = (i + 1) & (desc->element_count - 1)) {
         const auto i_hash = desc->hashes[i];
         if (!i_hash) break;
         if (distance(desc, i_hash, i) == 0) break;
