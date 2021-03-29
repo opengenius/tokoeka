@@ -5,7 +5,7 @@
 #include <cfloat>
 #include <cstdlib>
 #include <cstring>
-#include "hash_table.h"
+#include "hash_table_rh.inl"
 #include "index_ht.h"
 
 int32_t g_find_max;
@@ -264,9 +264,9 @@ static index_result_t get_term_index_no_assert(terms_table_t* terms, const term_
     ht_desc.element_count = terms->indices.size;
 
     auto coord_h = hash_uint32_t(coord);
-    auto iter = hash_find_index(&ht_desc, coord_h);
+    auto iter = hash_rh_find_index(&ht_desc, coord_h);
     for (; iter.hash == coord_h; 
-            iter = hash_find_next(&ht_desc, &iter)) {
+            iter = hash_rh_find_next(&ht_desc, &iter)) {
         auto term_index = terms->indices.indices[iter.index];
         if (coord == array_get(terms->terms, term_index).pos) {
             g_find_max = g_find_max < iter.counter ? iter.counter : g_find_max;
@@ -278,12 +278,12 @@ static index_result_t get_term_index_no_assert(terms_table_t* terms, const term_
 }
 
 static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord, uint32_t* out_index = nullptr) {
-    auto [index,_] = get_term_index_no_assert(terms, coord);
-    auto term_pos = terms->indices.indices[index];
+    auto index_res = get_term_index_no_assert(terms, coord);
+    auto term_pos = terms->indices.indices[index_res.index];
     term_data_t* res = &array_get(terms->terms, term_pos);
     assert(res->pos.row == coord.row && res->pos.column == coord.column);
 
-    if (out_index) *out_index = index;
+    if (out_index) *out_index = index_res.index;
     return res;
 }
 
