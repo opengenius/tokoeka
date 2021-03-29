@@ -3,6 +3,9 @@
 #include <cstring>
 #include <cassert>
 
+uint32_t g_move_count = 0;
+uint32_t g_erase_count = 0;
+
 namespace index_ht {
 
 static void element_data_move(void* ht_data, uint32_t dst_index, uint32_t src_index) {
@@ -38,7 +41,8 @@ uint32_t erase(index_ht_t& self, uint32_t ht_index) {
     ht_desc.hashes = self.hashes;
     ht_desc.data = self.indices;
     ht_desc.element_count = self.size;
-    hash_rh_erase(&s_term_ht_impl, &ht_desc, ht_index);
+    auto erase_count = hash_rh_erase(&s_term_ht_impl, &ht_desc, ht_index);
+    g_erase_count  = g_erase_count < erase_count ? erase_count : g_erase_count;
 
     --self.count;
 
@@ -50,8 +54,8 @@ void insert(index_ht_t& self, uint32_t ht_index, uint32_t key_hash, uint32_t val
     ht_desc.hashes = self.hashes;
     ht_desc.data = self.indices;
     ht_desc.element_count = self.size;
-    auto res = hash_rh_insert_move(&s_term_ht_impl, &ht_desc, ht_index);
-    assert(res);
+    uint32_t move_count = hash_rh_insert_move(&s_term_ht_impl, &ht_desc, ht_index);
+    g_move_count = g_move_count < move_count ? move_count : g_move_count;
 
     self.hashes[ht_index] = key_hash;
     self.indices[ht_index] = value;

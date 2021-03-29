@@ -51,7 +51,7 @@ static hash32_find_iter_t hash_rh_find_next(const hash_desc_t* desc, const hash3
     return res;
 }
 
-static bool hash_rh_insert_move(const hash_values_protocol_t* ht_api, 
+static uint32_t hash_rh_insert_move(const hash_values_protocol_t* ht_api, 
                     hash_desc_t* desc, uint32_t index) {
     // find empty slot
     uint32_t empty_index = index;
@@ -61,21 +61,23 @@ static bool hash_rh_insert_move(const hash_values_protocol_t* ht_api,
     }
 
     // slot is empty
-    if (empty_index == index) return true;
+    if (empty_index == index) return 0u;
 
     // move
+    uint32_t move_counter = 0u;
     if (empty_index < index) {
         while (empty_index > 0) {
             auto prev_index = empty_index - 1;
             desc->hashes[empty_index] = desc->hashes[prev_index];
             ht_api->move(desc->data, empty_index, prev_index);
             empty_index = prev_index;
+
+            ++move_counter;
         }
-        if (index < desc->element_count - 1) {
-            empty_index = desc->element_count - 1;
-            desc->hashes[0] = desc->hashes[empty_index];
-            ht_api->move(desc->data, 0, empty_index);
-        }
+        empty_index = desc->element_count - 1;
+        desc->hashes[0] = desc->hashes[empty_index];
+        ht_api->move(desc->data, 0, empty_index);
+        ++move_counter;
     }
 
     while(empty_index > index) {
@@ -83,39 +85,11 @@ static bool hash_rh_insert_move(const hash_values_protocol_t* ht_api,
         desc->hashes[empty_index] = desc->hashes[prev_index];
         ht_api->move(desc->data, empty_index, prev_index);
         empty_index = prev_index;
+
+        ++move_counter;
     }
 
-    return true;
-
-    // // find new place for the current slot
-    // uint32_t current_index = index;
-    // uint32_t slot_dist = distance(desc, hash_at_index, index);
-    // for (uint32_t counter = 0; counter < desc->element_count; ++counter) {
-    //     ++slot_dist;
-
-    //     uint32_t next_index = (current_index + slot_dist) % desc->element_count;
-    //     auto next_hash = desc->hashes[next_index];
-
-    //     // empty, fill with current and exit
-    //     if (!next_hash) {
-    //         desc->hashes[next_index] = desc->hashes[current_index];
-    //         ht_api->move(desc->data, next_index, current_index);
-    //         return true;
-    //     }
-
-    //     auto next_dist = distance(desc, next_hash, next_index);
-    //     if (next_dist < slot_dist) {
-    //         // rich found, swap
-    //         desc->hashes[next_index] = desc->hashes[current_index];
-    //         ht_api->move(desc->data, next_index, current_index);
-
-    //         current_index = next_index;
-    //         slot_dist = next_dist;
-    //     }
-    // }
-
-    // not found empty slots, assert?
-    return false;
+    return move_counter;
 }
 
 static uint32_t hash_rh_erase(const hash_values_protocol_t* ht_api, 
