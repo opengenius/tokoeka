@@ -1025,7 +1025,8 @@ solver_t *create_solver(const solver_desc_t* desc) {
     solver->allocator = allocator;
 
     // reserve single page size variable array
-    const int PAGE_SIZE = 4096; // todo: pass as input
+    const uint32_t PAGE_SIZE = desc->page_size ? desc->page_size : 4096;
+    assert(!(PAGE_SIZE & (PAGE_SIZE - 1)) && "expect power of 2 size");
     array_init(&solver->allocator, solver->vars, PAGE_SIZE);
     array_init(&solver->allocator, solver->constraints, PAGE_SIZE);
 

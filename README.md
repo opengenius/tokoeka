@@ -8,11 +8,9 @@ Performance characteristics are highly dependant on the hash table implementatio
 
 ## Warning
 The library is still under development, here are some things that must be resolved:
-* provide better hash table implementation (robin hood)
-* fix manual rehashing/adding to the full hash table
+* handle allocation failures
 * test unsuccessful add_constraint paths
 * cache term data for faster add_row and add_term
-* pass allocation page size into the solver creation function
 * delete variables used in constraints?
 
 ## Features

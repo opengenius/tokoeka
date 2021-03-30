@@ -42,6 +42,7 @@ const num_t STRENGTH_WEAK     = 1;
 
 struct solver_desc_t {
     allocator_t allocator;
+    uint32_t page_size;
 };
 
 /**
