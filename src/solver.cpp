@@ -235,15 +235,31 @@ inline void hash_combine(std::size_t& seed, const T& v)
     seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
 }
 
+/// hash a single byte
+static uint32_t fnv1a_hash(uint8_t oneByte, uint32_t hash) {
+    const uint32_t Prime = 0x01000193; //   16777619
+    return (oneByte ^ hash) * Prime;
+}
+
+const uint32_t fnv1a_seed  = 0x811C9DC5; // 2166136261
+static uint32_t fnv1a_hash(uint16_t twoBytes, uint32_t hash = fnv1a_seed) {
+    const uint8_t* ptr = (const uint8_t*) &twoBytes;
+    hash = fnv1a_hash(*ptr++, hash);
+    return fnv1a_hash(*ptr  , hash);
+}
+
 static uint32_t hash_uint32_t(const term_coord_t& pos) {
     // uint32_t combined = (pos.row << 16) | pos.column;
     // uint32_t res = distribute(combined);
 
-    size_t seed = 0;
-    hash_combine(seed, pos.row);
-    hash_combine(seed, pos.column);
+    // size_t seed = 0;
+    // hash_combine(seed, pos.row);
+    // hash_combine(seed, pos.column);
+    // uint32_t res = (uint32_t)seed;// ^ (uint32_t)(seed >> 32);
 
-    uint32_t res = (uint32_t)seed;
+    uint32_t hash = fnv1a_hash(pos.row);
+    uint32_t res = fnv1a_hash(pos.column, hash);
+
     res += (res == 0u) ? 1u : 0u;
     return res;
 }
@@ -254,10 +270,9 @@ static uint32_t hash_uint32_t(const term_coord_t& pos) {
 
 static void init_table(allocator_t* alloc, terms_table_t* terms, size_t page_size) {
     array_init(alloc, terms->terms, page_size);
-    auto size = page_size / (sizeof(uint32_t) * 2);//(uint32_t)array_size(&terms->terms.array);
 
-    auto buffer_byte_size = sizeof(uint32_t) * size;
-    uint32_t* indices_buf = (uint32_t*)allocate(alloc, buffer_byte_size * 2);
+    uint32_t size = (uint32_t)page_size / (sizeof(uint32_t) * 2);
+    uint32_t* indices_buf = (uint32_t*)allocate(alloc, sizeof(uint32_t) * size * 2);
     index_ht::init(terms->indices, indices_buf, indices_buf + size, size);
 }
 
@@ -303,9 +318,7 @@ static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord, ui
 
 static void table_grow_rehash(allocator_t* alloc, index_ht::index_ht_t* indices) {
     auto new_size = indices->size * 2;
-
-    auto buffer_byte_size = sizeof(uint32_t) * new_size;
-    uint32_t* indices_buf = (uint32_t*)allocate(alloc, buffer_byte_size * 2);
+    uint32_t* indices_buf = (uint32_t*)allocate(alloc, sizeof(uint32_t) * new_size * 2);
     index_ht::index_ht_t new_indices = {};
     index_ht::init(new_indices, indices_buf, indices_buf + new_size, new_size);
 
