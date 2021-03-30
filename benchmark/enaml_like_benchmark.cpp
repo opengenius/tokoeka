@@ -250,15 +250,5 @@ int main()
 
     destroy_solver(S);
 
-    extern uint32_t g_find_max;
-    printf("\n");
-    printf("g_find_max: %d\n", g_find_max);
-
-    extern uint32_t g_move_count;
-    printf("g_move_count: %d\n", g_move_count);
-
-    extern uint32_t g_erase_count;
-    printf("g_erase_count: %d\n", g_erase_count);
-
     return 0;
 }

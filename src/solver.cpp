@@ -4,10 +4,8 @@
 #include <cfloat>
 #include <cstdlib>
 #include <cstring>
-#include "hash_table_rh.inl"
+#include "hash_table.h"
 #include "index_ht.h"
-
-uint32_t g_find_max;
 
 namespace tokoeka {
 
@@ -271,7 +269,6 @@ static index_result_t get_term_index_no_assert(terms_table_t* terms, const term_
             iter = hash_find_next(&ht_desc, &iter)) {
         auto term_index = terms->indices.indices[iter.index];
         if (coord == array_get(terms->terms, term_index).pos) {
-            g_find_max = g_find_max < iter.counter ? iter.counter : g_find_max;
             return {iter.index, true};
         }
     }
