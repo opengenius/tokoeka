@@ -1,7 +1,6 @@
 #include "tokoeka/solver.h"
 
 #include <cassert>
-#include <type_traits>
 #include <cfloat>
 #include <cstdlib>
 #include <cstring>
@@ -14,7 +13,7 @@ namespace tokoeka {
 
 namespace {
 
-static_assert(std::is_same<num_t, double>::value, "");
+static_assert(sizeof(num_t) == sizeof(double), "");
 const num_t NUM_MAX = DBL_MAX;
 const num_t NUM_EPS = 1e-6;
 const uint32_t FREELIST_INDEX = 0u;
@@ -218,23 +217,6 @@ static void array_remove(sparse_array_t<T>& arr, uint32_t index) {
 // Term hash table 
 ///////////////////////////////////////////////////////////////////////////////
 
-static uint32_t xorshift(uint32_t n, int i) {
-  return n ^ (n >> i);
-}
-
-static uint32_t distribute(const uint32_t& n) {
-  uint32_t p = 0x55555555ul; // pattern of alternating 0 and 1
-  uint32_t c = 3423571495ul; // random uneven integer constant; 
-  return c * xorshift(p * xorshift(n, 16), 16);
-}
-
-template <class T>
-inline void hash_combine(std::size_t& seed, const T& v)
-{
-    std::hash<T> hasher;
-    seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
-}
-
 /// hash a single byte
 static uint32_t fnv1a_hash(uint8_t oneByte, uint32_t hash) {
     const uint32_t Prime = 0x01000193; //   16777619
@@ -249,14 +231,6 @@ static uint32_t fnv1a_hash(uint16_t twoBytes, uint32_t hash = fnv1a_seed) {
 }
 
 static uint32_t hash_uint32_t(const term_coord_t& pos) {
-    // uint32_t combined = (pos.row << 16) | pos.column;
-    // uint32_t res = distribute(combined);
-
-    // size_t seed = 0;
-    // hash_combine(seed, pos.row);
-    // hash_combine(seed, pos.column);
-    // uint32_t res = (uint32_t)seed;// ^ (uint32_t)(seed >> 32);
-
     uint32_t hash = fnv1a_hash(pos.row);
     uint32_t res = fnv1a_hash(pos.column, hash);
 

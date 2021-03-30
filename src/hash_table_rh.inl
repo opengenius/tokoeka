@@ -1,9 +1,7 @@
 #include "hash_table.h"
 
 static uint32_t distance(const hash_desc_t* desc, uint32_t key_hash, uint32_t pos) {
-    auto desired_pos = key_hash & (desc->element_count - 1);
-    //auto dist = (desired_pos <= pos) ? pos - desired_pos : pos + (desc->element_count - desired_pos);
-    auto dist = (pos - desired_pos) & (desc->element_count - 1);
+    auto dist = (pos - key_hash) & (desc->element_count - 1);
     return dist;
 }
 
