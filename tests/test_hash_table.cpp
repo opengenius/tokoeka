@@ -55,13 +55,13 @@ static uint32_t find_pos(const hash_desc_t& ht_desc, const pos_t& pos) {
 }
 
 TEST_CASE("insert-erase", "[hash_table]") {
-    uint32_t hashes[20] = {};
-    element_data_t elems[20] = {};
+    uint32_t hashes[16] = {};
+    element_data_t elems[16] = {};
     
     hash_desc_t ht_desc = {};
     ht_desc.hashes = hashes;
     ht_desc.data = elems;
-    ht_desc.element_count = 20;
+    ht_desc.element_count = 16;
 
     // insert 1.0 at (2, 3)
     {
