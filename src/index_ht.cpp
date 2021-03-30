@@ -1,5 +1,5 @@
 #include "index_ht.h"
-#include "hash_table_rh.inl"
+#include "hash_table.h"
 #include <cstring>
 #include <cassert>
 
@@ -41,7 +41,7 @@ uint32_t erase(index_ht_t& self, uint32_t ht_index) {
     ht_desc.hashes = self.hashes;
     ht_desc.data = self.indices;
     ht_desc.element_count = self.size;
-    auto erase_count = hash_rh_erase(&s_term_ht_impl, &ht_desc, ht_index);
+    auto erase_count = hash_erase(&s_term_ht_impl, &ht_desc, ht_index);
     g_erase_count  = g_erase_count < erase_count ? erase_count : g_erase_count;
 
     --self.count;
@@ -50,12 +50,12 @@ uint32_t erase(index_ht_t& self, uint32_t ht_index) {
 }
 
 void insert(index_ht_t& self, uint32_t ht_index, uint32_t key_hash, uint32_t value) {
-    hash_desc_t ht_desc = {};
-    ht_desc.hashes = self.hashes;
-    ht_desc.data = self.indices;
-    ht_desc.element_count = self.size;
-    uint32_t move_count = hash_rh_insert_move(&s_term_ht_impl, &ht_desc, ht_index);
-    g_move_count = g_move_count < move_count ? move_count : g_move_count;
+    // hash_desc_t ht_desc = {};
+    // ht_desc.hashes = self.hashes;
+    // ht_desc.data = self.indices;
+    // ht_desc.element_count = self.size;
+    // uint32_t move_count = hash_rh_insert_move(&s_term_ht_impl, &ht_desc, ht_index);
+    // g_move_count = g_move_count < move_count ? move_count : g_move_count;
 
     self.hashes[ht_index] = key_hash;
     self.indices[ht_index] = value;
@@ -73,8 +73,8 @@ void rehash(index_ht_t& dst_ht, const index_ht_t& src_ht) {
         if (!el_hash) continue;
 
         // find insert pos
-        auto iter = hash_rh_find_index(&ht_desc, el_hash);
-        for (; iter.hash == el_hash; iter = hash_rh_find_next(&ht_desc, &iter));
+        auto iter = hash_find_index(&ht_desc, el_hash);
+        for (; iter.hash == el_hash; iter = hash_find_next(&ht_desc, &iter));
 
         insert(dst_ht, iter.index, el_hash, src_ht.indices[i]);
     }

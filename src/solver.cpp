@@ -266,9 +266,9 @@ static index_result_t get_term_index_no_assert(terms_table_t* terms, const term_
     ht_desc.element_count = terms->indices.size;
 
     auto coord_h = hash_uint32_t(coord);
-    auto iter = hash_rh_find_index(&ht_desc, coord_h);
+    auto iter = hash_find_index(&ht_desc, coord_h);
     for (; iter.hash == coord_h; 
-            iter = hash_rh_find_next(&ht_desc, &iter)) {
+            iter = hash_find_next(&ht_desc, &iter)) {
         auto term_index = terms->indices.indices[iter.index];
         if (coord == array_get(terms->terms, term_index).pos) {
             g_find_max = g_find_max < iter.counter ? iter.counter : g_find_max;
