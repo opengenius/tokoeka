@@ -628,6 +628,8 @@ static void mark_infeasible(solver_t *solver, symbol_t row) {
 }
 
 static void pivot(solver_t *solver, symbol_t row, symbol_t entry, symbol_t exit) {
+    assert(!has_row(&solver->terms, entry));
+
     term_coord_t key = {row, entry};
     auto term_it = get_term_result(&solver->terms, key);
     num_t reciprocal = 1.0f / term_it.term->multiplier;

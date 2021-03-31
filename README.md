@@ -15,8 +15,8 @@ The library is still under development, here are some things that must be resolv
 
 ## Features
 * up to 64k variables (including internal objective, slack, error and dummy ones)
-* 4 total allocation: variables buffer, constraint buffer, terms buffer for open addressing hash table and one for the solver struct.
-* fast row and column iteration (2 intrusive lists within element's term data in the hash table)
+* 5 total allocation: variables buffer, constraint buffer, terms buffer, term indices for open addressing hash table and one for the solver struct.
+* row and column list iteration (2 intrusive lists within element's term data)
 
 ## Setup
 The project is configured for the usage with CMake, link tokoeka target as a library to include public directories and link with its static library as well. In the case the library is placed in project tree:
