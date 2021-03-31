@@ -1,25 +1,7 @@
 #pragma once
 
-#include "stdint.h"
 #include <cassert>
 #include "hash_types.h"
-
-struct hash_values_protocol_t {
-    /**
-     * Copy value from src_index to dst_index
-     */
-    void (*move)(void* ht_data, uint32_t dst_index, uint32_t src_index);
-    /**
-     * Clear value at index
-     */
-    void (*reset)(void* ht_data, uint32_t index);
-};
-
-struct hash_desc_t {
-    uint32_t* hashes;
-    void*     data;
-    uint32_t  element_count;
-};
 
 static hash32_find_iter_t hash_find_index(const hash_desc_t* desc, uint32_t key_hash) {
     assert(desc->hashes);

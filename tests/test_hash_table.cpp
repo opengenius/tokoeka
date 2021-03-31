@@ -1,5 +1,5 @@
 #include "catch2/catch.hpp"
-#include "../src/hash_table.h"
+#include "../src/hash_table.inl"
 
 struct pos_t {
     uint32_t row, column;

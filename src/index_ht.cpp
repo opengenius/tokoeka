@@ -1,5 +1,5 @@
 #include "index_ht.h"
-#include "hash_table.h"
+#include "hash_table.inl"
 #include <cstring>
 #include <cassert>
 
