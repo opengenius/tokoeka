@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hash_types.h"
+#include <cassert>
 
 static uint32_t distance(const hash_desc_t* desc, uint32_t key_hash, uint32_t pos) {
     auto dist = (pos - key_hash) & (desc->element_count - 1);
