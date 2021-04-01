@@ -136,7 +136,7 @@ static void array_grow(allocator_t* alloc, array_t<T>* arr, size_t new_size) {
     const size_t new_size_in_bytes = new_size * sizeof(T);
     T* new_buf = (T*)allocate(alloc, new_size_in_bytes);
     if (arr->entries) {
-        memcpy(new_buf, arr->entries, new_size_in_bytes);
+        memcpy(new_buf, arr->entries, arr->size * sizeof(T));
         free(alloc, arr->entries);
     }
     arr->entries = (T*)new_buf;
