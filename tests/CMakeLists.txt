@@ -24,9 +24,11 @@ set(LIBS
 )
 
 add_executable(test_cassowary test_cassowary.cpp)
+set_target_properties(test_cassowary PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
 target_link_libraries(test_cassowary PRIVATE ${LIBS})
 catch_discover_tests(test_cassowary)
 
 add_executable(test_ht test_hash_table.cpp)
+set_target_properties(test_ht PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
 target_link_libraries(test_ht PRIVATE ${LIBS})
 catch_discover_tests(test_ht)

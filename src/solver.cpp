@@ -4,7 +4,6 @@
 #include <cfloat>
 #include <cstdlib>
 #include <cstring>
-#include "hash_table.inl"
 #include "index_ht.h"
 
 namespace tokoeka {
