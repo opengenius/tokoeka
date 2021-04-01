@@ -5,14 +5,11 @@ project(tokoeka
 
 set(CMAKE_CXX_STANDARD 17)
 
-if (CMAKE_BUILD_TYPE EQUAL "Release")
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
-
 add_library(tokoeka STATIC 
     src/solver.cpp
     src/index_ht.cpp
 )
+set_target_properties(tokoeka PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
 target_include_directories(tokoeka PUBLIC include)
 
 get_directory_property(HAS_PARENT PARENT_DIRECTORY)

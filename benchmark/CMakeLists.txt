@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 set(CMAKE_CXX_STANDARD 17)
 
-Include(FetchContent)
+
+include(FetchContent)
 
 #
 # Setup nanobench
@@ -19,5 +20,7 @@ FetchContent_MakeAvailable(nanobench)
 #
 
 add_executable(enaml_benchmark enaml_like_benchmark.cpp)
-target_link_libraries(enaml_benchmark 
+set_target_properties(enaml_benchmark PROPERTIES INTERPROCEDURAL_OPTIMIZATION TRUE)
+
+target_link_libraries(enaml_benchmark
                         PRIVATE nanobench tokoeka)

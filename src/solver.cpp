@@ -259,20 +259,15 @@ typedef struct {
 } index_result_t;
 
 static index_result_t get_term_index_no_assert(terms_table_t* terms, const term_coord_t& coord) {
-    hash_desc_t ht_desc = {};
-    ht_desc.hashes = terms->indices.hashes;
-    ht_desc.element_count = terms->indices.size;
-
     auto coord_h = hash_uint32_t(coord);
-    auto iter = hash_find_index(&ht_desc, coord_h);
+    auto iter = index_ht::find_index(terms->indices, coord_h);
     for (; iter.hash == coord_h; 
-            iter = hash_find_next(&ht_desc, &iter)) {
+            iter = index_ht::find_next(terms->indices, &iter)) {
         auto term_index = terms->indices.indices[iter.index];
         if (coord == array_get(terms->terms, term_index).pos) {
             return {iter.index, true};
         }
     }
-
     return {iter.index, false};
 }
 
@@ -665,11 +660,10 @@ static void pivot(solver_t *solver, symbol_t row, symbol_t entry, symbol_t exit)
 
 static result_e optimize(solver_t *solver, symbol_t objective) {
     for (;;) {
-        symbol_t enter = 0u, exit = 0u;
-        num_t r, min_ratio = NUM_MAX;
-
         assert(solver->infeasible_rows == 0);
 
+        // find entering symbol
+        symbol_t enter = 0u;
         for (auto term_it = first_row_term_iterator(&solver->terms, objective);
                 term_it.term_res.term;
                 term_it = next_row_iterator(&solver->terms, term_it)) {
@@ -684,6 +678,9 @@ static result_e optimize(solver_t *solver, symbol_t objective) {
 
         if (enter == 0) return result_e::OK;
 
+        // find leaving row
+        symbol_t exit = 0u;
+        num_t min_ratio = NUM_MAX;
         // enter symbol const iteration
         for (auto sym_iter = first_symbol_iterator(&solver->terms, enter); 
                 sym_iter.term_res.term; 
@@ -694,14 +691,16 @@ static result_e optimize(solver_t *solver, symbol_t objective) {
 
             if (!is_pivotable(solver, it_row) || 
                     it_row == objective ||
-                    term_multiplier > 0.0f) 
+                    term_multiplier >= 0.0f) 
                 continue;
 
-            r = -value(solver, it_row) / term_multiplier;
-            if (r < min_ratio || (approx(r, min_ratio)
-                        && it_row < exit)) {
+            num_t r = -value(solver, it_row) / term_multiplier;
+            if (r < min_ratio /*|| (approx(r, min_ratio)
+                        && it_row < exit)*/) {
                 min_ratio = r;
                 exit = it_row;
+
+                if (r == 0.0f) break;
             }
         }
 
