@@ -24,13 +24,17 @@ typedef uint32_t constraint_handle_t;
 
 struct solver_t;
 
+struct allocated_chunk_t {
+    void* ptr;
+    size_t size;
+};
 struct allocator_t {
     /**
      * Allocate memory with requested size and 8 byte alignment, 
      * todo: pass alignment (for efficient ht implemenation for example)
      */
-    void* (*allocate)(void *ud, size_t size);
-    void (*free)(void *ud, void* p);
+    allocated_chunk_t (*allocate)(void *ud, size_t size);
+    void (*free)(void *ud, void* chunk);
 
     void* ud;
 };

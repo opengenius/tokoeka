@@ -103,7 +103,7 @@ static bool near_zero(num_t a) {
 
 /* allocator helper */
 
-static void* allocate(allocator_t* allocator, size_t size) {
+static allocated_chunk_t allocate(allocator_t* allocator, size_t size) {
     return allocator->allocate(allocator->ud, size);
 }
 
@@ -131,15 +131,16 @@ static T& array_get(array_t<T>& arr, size_t position) {
 }
 
 template<typename T>
-static void array_grow(allocator_t* alloc, array_t<T>* arr, size_t new_size) {
-    const size_t new_size_in_bytes = new_size * sizeof(T);
-    T* new_buf = (T*)allocate(alloc, new_size_in_bytes);
+static void array_grow(allocator_t* alloc, array_t<T>* arr, size_t desired_size) {
+    const size_t new_size_in_bytes = desired_size * sizeof(T);
+    auto array_mem = allocate(alloc, new_size_in_bytes);
+    T* new_buf = (T*)array_mem.ptr;
     if (arr->entries) {
         memcpy(new_buf, arr->entries, arr->size * sizeof(T));
         free(alloc, arr->entries);
     }
     arr->entries = (T*)new_buf;
-    arr->size = new_size;
+    arr->size = array_mem.size / sizeof(T);
 }
 
 /* sparse_array_t */
@@ -242,8 +243,9 @@ static uint32_t hash_uint32_t(const term_coord_t& pos) {
 static void init_table(allocator_t* alloc, terms_table_t* terms, size_t page_size) {
     array_init(alloc, terms->terms, page_size);
 
+    auto indices_mem = allocate(alloc, page_size);
     uint32_t size = (uint32_t)page_size / (sizeof(uint32_t) * 2);
-    uint32_t* indices_buf = (uint32_t*)allocate(alloc, sizeof(uint32_t) * size * 2);
+    uint32_t* indices_buf = (uint32_t*)indices_mem.ptr;
     index_ht::init(terms->indices, indices_buf, indices_buf + size, size);
 }
 
@@ -283,7 +285,8 @@ static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord, ui
 
 static void table_grow_rehash(allocator_t* alloc, index_ht::index_ht_t* indices) {
     auto new_size = indices->size * 2;
-    uint32_t* indices_buf = (uint32_t*)allocate(alloc, sizeof(uint32_t) * new_size * 2);
+    auto indices_mem = allocate(alloc, sizeof(uint32_t) * new_size * 2); // multiple of initial page size
+    uint32_t* indices_buf = (uint32_t*)indices_mem.ptr;
     index_ht::index_ht_t new_indices = {};
     index_ht::init(new_indices, indices_buf, indices_buf + new_size, new_size);
 
@@ -963,8 +966,13 @@ static void dual_optimize(solver_t *solver) {
     }
 }
 
-static void* default_allocate(void *ud, size_t size) {
-    return malloc(size);
+static allocated_chunk_t default_allocate(void *ud, size_t size) {
+    const uint32_t PAGE_SIZE = 4096; // todo: use value from solver desc
+    if (PAGE_SIZE < size) {
+        auto remaining = size % PAGE_SIZE;
+        size = remaining ? (size / PAGE_SIZE + 1) * PAGE_SIZE : size;
+    }
+    return {malloc(size), size};
 }
 
 static void default_free(void *ud, void* p) {
@@ -990,7 +998,8 @@ solver_t *create_solver(const solver_desc_t* desc) {
     if (!allocator.allocate) {
         allocator = s_default_allocator;
     }
-    solver_t* solver = (solver_t*)allocate(&allocator, sizeof(solver_t));
+    auto solver_mem = allocate(&allocator, sizeof(solver_t));
+    solver_t* solver = (solver_t*)solver_mem.ptr;
     memset(solver, 0, sizeof(*solver));
     solver->allocator = allocator;
 
