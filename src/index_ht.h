@@ -16,7 +16,7 @@ uint32_t erase(index_ht_t& self, uint32_t ht_index);
 void insert(index_ht_t& self, uint32_t ht_index, uint32_t key_hash, uint32_t value);
 void rehash(index_ht_t& dst_ht, const index_ht_t& src_ht);
 
-hash32_find_iter_t find_index(const index_ht_t& self, uint32_t key_hash);
-hash32_find_iter_t find_next(const index_ht_t& self, const hash32_find_iter_t* prev_iter);
+hash32_find_iter_t find_index(const index_ht_t& self, uint32_t key_hash, uint32_t* found_index);
+hash32_find_iter_t find_next(const index_ht_t& self, const hash32_find_iter_t* prev_iter , uint32_t* found_index);
 
 }

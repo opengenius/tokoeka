@@ -253,31 +253,31 @@ static void free_table(allocator_t* alloc, terms_table_t* terms) {
 }
 
 typedef struct {
+    uint32_t ht_index;
     uint32_t index;
     bool found;
 } index_result_t;
 
 static index_result_t get_term_index_no_assert(terms_table_t* terms, const term_coord_t& coord) {
     auto coord_h = hash_uint32_t(coord);
-    auto iter = index_ht::find_index(terms->indices, coord_h);
+    uint32_t term_index = 0u;
+    auto iter = index_ht::find_index(terms->indices, coord_h, &term_index);
     for (; iter.hash == coord_h; 
-            iter = index_ht::find_next(terms->indices, &iter)) {
-        auto term_index = terms->indices.indices[iter.index];
+            iter = index_ht::find_next(terms->indices, &iter, &term_index)) {
         if (coord == array_get(terms->terms, term_index).pos) {
-            return {iter.index, true};
+            return {iter.index, term_index, true};
         }
     }
-    return {iter.index, false};
+    return {iter.index, ~0u, false};
 }
 
 static term_data_t* get_term(terms_table_t* terms, const term_coord_t& coord, uint32_t* out_index = nullptr) {
     auto index_res = get_term_index_no_assert(terms, coord);
     assert(index_res.found);
-    auto term_pos = terms->indices.indices[index_res.index];
-    term_data_t* res = &array_get(terms->terms, term_pos);
+    term_data_t* res = &array_get(terms->terms, index_res.index);
     assert(res->pos.row == coord.row && res->pos.column == coord.column);
 
-    if (out_index) *out_index = index_res.index;
+    if (out_index) *out_index = index_res.ht_index;
     return res;
 }
 
@@ -306,11 +306,10 @@ static term_result_t get_term_result(terms_table_t* terms, const term_coord_t& c
 
 static term_result_t find_term(terms_table_t* terms, const term_coord_t& coord) {
     term_result_t res = {};
-    auto [index, found] = get_term_index_no_assert(terms, coord);
-    res.index = index;
-    if (found) {
-        auto index = terms->indices.indices[res.index];
-        res.term = &array_get(terms->terms, index);
+    auto index_res = get_term_index_no_assert(terms, coord);
+    res.index = index_res.ht_index;
+    if (index_res.found) {
+        res.term = &array_get(terms->terms, index_res.index);
     }
 
     return res;
