@@ -4,10 +4,12 @@ A data oriented [Cassowary](https://constraints.cs.washington.edu/cassowary/) co
 ## What's tokoeka?
 This library was derived from [Amoeba](https://github.com/starwing/amoeba) and [kiwi](https://github.com/nucleic/kiwi) projects with another sparse table under the hood (dictionary of keys instead of list/dictionary of dictionaries).
 The main idea is to get rid of lots of small allocations and provide a fast row iteration by maintaining the list of symbol rows.
-Performance characteristics are highly dependant on the hash table implementation and its load factor (current version is based on linear probing with backward shift deletion).
+Performance characteristics are highly dependant on the hash table implementation and its load factor (current version is based on linear probing with backward shift deletion with fnv1a hash for keys and load factor of 0.5).
 
 ## Warning
-The library is still under development, here are some things that must be resolved:
+The library is still under development and is more a proof of concept that DOK sparse table could be used to implement efficient storage for equation term data
+and as studying case to understand the perfomance characteristics of underlying algorithm (so it wasn't used as an solver in any actual product), 
+here are some things that must be resolved:
 * handle allocation failures
 * test unsuccessful add_constraint paths
 * cache term data for faster add_row and add_term
