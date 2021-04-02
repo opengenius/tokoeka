@@ -696,8 +696,7 @@ static result_e optimize(solver_t *solver, symbol_t objective) {
                 continue;
 
             num_t r = -value(solver, it_row) / term_multiplier;
-            if (r < min_ratio /*|| (approx(r, min_ratio)
-                        && it_row < exit)*/) {
+            if (r < min_ratio) {
                 min_ratio = r;
                 exit = it_row;
 

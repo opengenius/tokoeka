@@ -17,7 +17,7 @@ here are some things that must be resolved:
 
 ## Features
 * up to 64k variables (including internal objective, slack, error and dummy ones)
-* 5 total allocation: variables buffer, constraint buffer, terms buffer, term indices for open addressing hash table and one for the solver struct.
+* 5 total allocations sized with a multiple of the page size: variables buffer, constraint buffer, terms buffer, term indices for open addressing hash table and one for the solver struct itself.
 * row and column list iteration (2 intrusive lists within element's term data)
 
 ## Setup
