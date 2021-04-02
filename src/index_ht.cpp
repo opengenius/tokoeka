@@ -82,7 +82,7 @@ hash32_find_iter_t find_index(const index_ht_t& self, uint32_t key_hash, uint32_
     ht_desc.element_count = self.size;
 
     hash32_find_iter_t res = hash_find_index(&ht_desc, key_hash);
-    *found_index = (res.hash == key_hash) ? self.indices[res.index] : ~0u;
+    *found_index = self.indices[res.index];
     return res;
 }
 
@@ -92,7 +92,7 @@ hash32_find_iter_t find_next(const index_ht_t& self, const hash32_find_iter_t* p
     ht_desc.element_count = self.size;
 
     hash32_find_iter_t res = hash_find_next(&ht_desc, prev_iter);
-    *found_index = (res.hash == prev_iter->hash) ? self.indices[res.index] : ~0u;
+    *found_index = self.indices[res.index];
     return res;
 }
 
